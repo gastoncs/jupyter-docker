@@ -1,0 +1,7 @@
+.*
+!/.gitignore
+app/src/data
+tstables
+app/src/testing/pattern_break/data
+app/src/practice/data
+app/src/xtb/spreads
