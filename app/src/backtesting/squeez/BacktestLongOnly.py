@@ -20,13 +20,13 @@ class BacktestLongOnly(BacktestBase):
 
         super().__init__(symbol, start, end, amount, ftc, ptc, verbose)
         
-        self.generateEMA()
+        self.calculateEMA25()
         self.calculateBolingerAndKeltnerChannels(kc)
         self.detectSqueeze()
         self.detectSqueezeCloseToEMA()
         self.detectPosition()
 
-    def generateEMA(self):
+    def calculateEMA25(self):
         self.data['ema25'] = self.data['Close'].ewm(span=25, adjust=False).mean()
         
     def calculateBolingerAndKeltnerChannels(self, kc)->None:
