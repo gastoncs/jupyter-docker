@@ -81,7 +81,8 @@ class BacktestLongOnly(BacktestBase):
             df2 = df.iloc[candle-window:candle]
             lastTreeOver = df2[df2['squeezeCloseToEma'] == EMA25['PRICE_ACCION_OVER'].value].tail(3).values
             
-            if len(lastTreeOver) == window and close>ema25 and squeezeCloseToEma: 
+            if self.position == POSITION['NEUTRAL'].value: 
+                if len(lastTreeOver) == window and close>ema25 and squeezeCloseToEma: 
                     self.place_buy_order(candle, amount=self.amount)
                     self.position = POSITION['LONG'].value
             elif self.position == POSITION['LONG'].value:

@@ -11,9 +11,9 @@ class POSITION(enum.Enum):
     SHORT = 2
     
 class EMA25(enum.Enum):
-    PRICE_ACCION_NEUTRAL = 0
-    PRICE_ACCION_UNDER = 1
-    PRICE_ACCION_OVER = 2
+    PRICE_ACCION_NEUTRAL_EMA = 0
+    PRICE_ACCION_UNDER_EMA = 1
+    PRICE_ACCION_OVER_EMA = 2
 
 class BacktestLongShort(BacktestBase):
     def __init__(self, symbol, start, end, amount, ftc=0.0, ptc=0.0, verbose=True):
@@ -61,22 +61,22 @@ class BacktestLongShort(BacktestBase):
     
     def detectSqueezeCloseToEMA(self, zoneWidth = .30)->None:
         df=self.data
-        df['squeezeCloseToEma'] = EMA25['PRICE_ACCION_NEUTRAL'].value
+        df['squeezeCloseToEma'] = EMA25['PRICE_ACCION_NEUTRAL_EMA'].value
         
-        cond =((df.squeezedArea == EMA25['PRICE_ACCION_OVER'].value) & (abs(df.Low-df.ema25)<=zoneWidth))
-        df.loc[cond, 'squeezeCloseToEma'] = EMA25['PRICE_ACCION_OVER'].value
+        cond =((df.squeezedArea == EMA25['PRICE_ACCION_OVER_EMA'].value) & (abs(df.Low-df.ema25)<=zoneWidth))
+        df.loc[cond, 'squeezeCloseToEma'] = EMA25['PRICE_ACCION_OVER_EMA'].value
     
-        cond =((df.squeezedArea == EMA25['PRICE_ACCION_UNDER'].value) & (abs(df.High-df.ema25)<=zoneWidth))
-        df.loc[cond, 'squeezeCloseToEma'] = EMA25['PRICE_ACCION_UNDER'].value
+        cond =((df.squeezedArea == EMA25['PRICE_ACCION_UNDER_EMA'].value) & (abs(df.High-df.ema25)<=zoneWidth))
+        df.loc[cond, 'squeezeCloseToEma'] = EMA25['PRICE_ACCION_UNDER_EMA'].value
     
     def detectSqueeze(self)->None:
         df=self.data
-        df['squeezedArea'] = EMA25['PRICE_ACCION_NEUTRAL'].value
+        df['squeezedArea'] = EMA25['PRICE_ACCION_NEUTRAL_EMA'].value
         cond = ((df.bbu_minus_kcu <= 0) & (df.Close < df.ema25))
-        df.loc[cond, 'squeezedArea'] = EMA25['PRICE_ACCION_UNDER'].value
+        df.loc[cond, 'squeezedArea'] = EMA25['PRICE_ACCION_UNDER_EMA'].value
         
         cond2 =((df.bbu_minus_kcu <= 0) & (df.Close > df.ema25))
-        df.loc[cond2, 'squeezedArea'] = EMA25['PRICE_ACCION_OVER'].value
+        df.loc[cond2, 'squeezedArea'] = EMA25['PRICE_ACCION_OVER_EMA'].value
 
     def runStrategy(self):
         ''' Backtesting Squeeze Strategy.
@@ -99,21 +99,22 @@ class BacktestLongShort(BacktestBase):
             squeezeCloseToEma = (df.iloc[candle]).squeezeCloseToEma 
 
             df2 = df.iloc[candle-window:candle]
-            lastTreeOver = df2[df2['squeezeCloseToEma'] == EMA25['PRICE_ACCION_OVER'].value].tail(3).values
-            lastTreeUnder = df2[df2['squeezeCloseToEma'] == EMA25['PRICE_ACCION_UNDER'].value].tail(3).values
+            lastTreeOver = df2[df2['squeezeCloseToEma'] == EMA25['PRICE_ACCION_OVER_EMA'].value].tail(3).values
+            lastTreeUnder = df2[df2['squeezeCloseToEma'] == EMA25['PRICE_ACCION_UNDER_EMA'].value].tail(3).values
             
-            if len(lastTreeOver) == window and close>ema25 and squeezeCloseToEma: 
-                    self.go_long(candle, amount=self.amount)
+            if self.position == POSITION['NEUTRAL'].value:
+                if len(lastTreeOver) == window and close>ema25 and squeezeCloseToEma: 
+                    self.go_long(candle, amount=self.initial_amount)
                     self.position = POSITION['LONG'].value
-            elif len(lastTreeUnder) == window and close<ema25 and squeezeCloseToEma:
+                elif len(lastTreeUnder) == window and close<ema25 and squeezeCloseToEma:
                     self.go_short(candle, amount=self.initial_amount)
                     self.position = POSITION['SHORT'].value
             elif self.position == POSITION['LONG'].value:
-                if self.data['squeezeCloseToEma'].iloc[candle] == EMA25['PRICE_ACCION_OVER'].value:
+                if self.data['squeezeCloseToEma'].iloc[candle] == EMA25['PRICE_ACCION_OVER_EMA'].value:
                     self.place_sell_order(candle, units=self.units)
                     self.position = POSITION['NEUTRAL'].value
             elif self.position == POSITION['SHORT'].value:
-                if self.data['squeezeCloseToEma'].iloc[candle] == EMA25['PRICE_ACCION_UNDER'].value:
+                if self.data['squeezeCloseToEma'].iloc[candle] == EMA25['PRICE_ACCION_UNDER_EMA'].value:
                     self.place_buy_order(candle, units=self.units)
                     self.position = POSITION['NEUTRAL'].value
         
