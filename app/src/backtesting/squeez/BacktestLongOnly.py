@@ -67,7 +67,7 @@ class BacktestLongOnly(BacktestBase):
         msg += f'proportional costs {self.ptc}'
         print(msg)
         print('=' * 55)
-        self.position = 0  # initial neutral position
+        self.position = POSITION['NEUTRAL'].value
         self.trades = 0  # no trades yet
         self.amount = self.initial_amount  # reset initial capital
         window = 3
