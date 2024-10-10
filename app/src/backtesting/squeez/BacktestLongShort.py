@@ -10,7 +10,16 @@ from BacktestBase import *
 
 
 class BacktestLongShort(BacktestBase):
+    def __init__(self, symbol, start, end, amount, ftc=0.0, ptc=0.0, verbose=True):
 
+        super().__init__(symbol, start, end, amount, ftc, ptc, verbose)
+        
+        self.calculateEMA25()
+        self.calculateBolingerAndKeltnerChannels(kc)
+        self.detectSqueeze()
+        self.detectSqueezeCloseToEMA()
+        self.detectPosition()
+    
     def go_long(self, bar, units=None, amount=None):
         if self.position == -1:
             self.place_buy_order(bar, units=-self.units)
@@ -31,53 +40,65 @@ class BacktestLongShort(BacktestBase):
                 amount = self.amount
             self.place_sell_order(bar, amount=amount)
 
-    def run_sma_strategy(self, SMA1, SMA2):
-        msg = f'\n\nRunning SMA strategy | SMA1={SMA1} & SMA2={SMA2}'
-        msg += f'\nfixed costs {self.ftc} | '
-        msg += f'proportional costs {self.ptc}'
-        print(msg)
-        print('=' * 55)
-        self.position = 0  # initial neutral position
-        self.trades = 0  # no trades yet
-        self.amount = self.initial_amount  # reset initial capital
-        self.data['SMA1'] = self.data['price'].rolling(SMA1).mean()
-        self.data['SMA2'] = self.data['price'].rolling(SMA2).mean()
+    def calculateEMA25(self):
+        self.data['ema25'] = self.data['Close'].ewm(span=25, adjust=False).mean()
+        
+    def calculateBolingerAndKeltnerChannels(self, kc)->None:
+        df=self.data
+        # Bolinger Bands
+        df.ta.bbands(append=True, length=20, std=2)
+        
+        # Initialize Keltner Channel Indictor
+        kc=kc(high=df['High'], low=df['Low'], close=df["Close"], window=20)
+        
+        #Bolinger Band Upper - Keltner Channel Upper
+        df['bbu_minus_kcu'] = df['BBU_20_2.0'] - kc['KCUe_20_2']
+    
+    def detectPosition(self, window = 3)->None:
+        df=self.data
+        df['position'] = POSITION['NEUTRAL'].value
+    
+        '''
+        SHORT POSITION
+        '''
+        cond = (df.squeezeCloseToEma == EMA25['PRICE_ACCION_UNDER'].value)
+        cond2 = (len(cond.tail(3).values) == window)
+        cond3 = (cond2 & (df.Close<df.ema25))
+        cond4 = (cond3 & (df.squeezeCloseToEma)==EMA25['PRICE_ACCION_UNDER'].value)
+        df.loc[cond4, 'position'] = POSITION['SHORT'].value
+    
+        '''
+        LONG POSITION
+        '''
+        cond = (df.squeezeCloseToEma == EMA25['PRICE_ACCION_OVER'].value)
+        cond2 = (len(cond.tail(3).values) == window)
+        cond3 = (cond2 & (df.Close>df.ema25))
+        cond4 = (cond3 & (df.squeezeCloseToEma==EMA25['PRICE_ACCION_OVER'].value))
+        df.loc[cond4, 'position'] = POSITION['LONG'].value
+    
+    def detectSqueezeCloseToEMA(self, zoneWidth = .30)->None:
+        df=self.data
+        df['squeezeCloseToEma'] = EMA25['PRICE_ACCION_NEUTRAL'].value
+        
+        cond =((df.squeezedArea == EMA25['PRICE_ACCION_OVER'].value) & (abs(df.Low-df.ema25)<=zoneWidth))
+        df.loc[cond, 'squeezeCloseToEma'] = EMA25['PRICE_ACCION_OVER'].value
+    
+        cond =((df.squeezedArea == EMA25['PRICE_ACCION_UNDER'].value) & (abs(df.High-df.ema25)<=zoneWidth))
+        df.loc[cond, 'squeezeCloseToEma'] = EMA25['PRICE_ACCION_UNDER'].value
+    
+    def detectSqueeze(self)->None:
+        df=self.data
+        df['squeezedArea'] = EMA25['PRICE_ACCION_NEUTRAL'].value
+        cond = ((df.bbu_minus_kcu <= 0) & (df.Close < df.ema25))
+        df.loc[cond, 'squeezedArea'] = EMA25['PRICE_ACCION_UNDER'].value
+        
+        cond2 =((df.bbu_minus_kcu <= 0) & (df.Close > df.ema25))
+        df.loc[cond2, 'squeezedArea'] = EMA25['PRICE_ACCION_OVER'].value
 
-        for bar in range(SMA2, len(self.data)):
-            if self.position in [0, -1]:
-                if self.data['SMA1'].iloc[bar] > self.data['SMA2'].iloc[bar]:
-                    self.go_long(bar, amount='all')
-                    self.position = 1  # long position
-            if self.position in [0, 1]:
-                if self.data['SMA1'].iloc[bar] < self.data['SMA2'].iloc[bar]:
-                    self.go_short(bar, amount='all')
-                    self.position = -1  # short position
-        self.close_out(bar)
-
-    def run_momentum_strategy(self, momentum):
-        msg = f'\n\nRunning momentum strategy | {momentum} days'
-        msg += f'\nfixed costs {self.ftc} | '
-        msg += f'proportional costs {self.ptc}'
-        print(msg)
-        print('=' * 55)
-        self.position = 0  # initial neutral position
-        self.trades = 0  # no trades yet
-        self.amount = self.initial_amount  # reset initial capital
-        self.data['momentum'] = self.data['return'].rolling(momentum).mean()
-        for bar in range(momentum, len(self.data)):
-            if self.position in [0, -1]:
-                if self.data['momentum'].iloc[bar] > 0:
-                    self.go_long(bar, amount='all')
-                    self.position = 1  # long position
-            if self.position in [0, 1]:
-                if self.data['momentum'].iloc[bar] <= 0:
-                    self.go_short(bar, amount='all')
-                    self.position = -1  # short position
-        self.close_out(bar)
-
-    def run_mean_reversion_strategy(self, SMA, threshold):
+    def runStrategy(self):
+        ''' Backtesting Squeeze Strategy.
+        '''
         msg = f'\n\nRunning mean reversion strategy | '
-        msg += f'SMA={SMA} & thr={threshold}'
         msg += f'\nfixed costs {self.ftc} | '
         msg += f'proportional costs {self.ptc}'
         print(msg)
@@ -86,38 +107,35 @@ class BacktestLongShort(BacktestBase):
         self.trades = 0  # no trades yet
         self.amount = self.initial_amount  # reset initial capital
 
-        self.data['SMA'] = self.data['price'].rolling(SMA).mean()
 
-        for bar in range(SMA, len(self.data)):
-            if self.position == 0:
-                if (self.data['price'].iloc[bar] <
-                        self.data['SMA'].iloc[bar] - threshold):
+            if self.position == POSITION['NEUTRAL'].value:
+                self.place_buy_order(bar, amount=self.amount)
+                self.position = POSITION['LONG'].value
+            elif self.position == POSITION['LONG'].value:
+                if self.data['squeezeCloseToEma'].iloc[bar] == EMA25['PRICE_ACCION_OVER'].value:
+                    self.place_sell_order(bar, units=self.units)
+                    self.position = POSITION['NEUTRAL'].value
+        
+        for bar in range(0, len(self.data)):
+            
+            if self.position == POSITION['NEUTRAL'].value:
+                if ():
                     self.go_long(bar, amount=self.initial_amount)
-                    self.position = 1
-                elif (self.data['price'].iloc[bar] >
-                        self.data['SMA'].iloc[bar] + threshold):
+                    self.position = POSITION['LONG'].value
+                elif (self.data['price'].iloc[bar] > self.data['SMA'].iloc[bar] + threshold):
                     self.go_short(bar, amount=self.initial_amount)
                     self.position = -1
-            elif self.position == 1:
+            elif self.position == POSITION['LONG'].value:
                 if self.data['price'].iloc[bar] >= self.data['SMA'].iloc[bar]:
                     self.place_sell_order(bar, units=self.units)
                     self.position = 0
-            elif self.position == -1:
+            elif self.position == POSITION['SHORT'].value:
                 if self.data['price'].iloc[bar] <= self.data['SMA'].iloc[bar]:
                     self.place_buy_order(bar, units=-self.units)
                     self.position = 0
+                    
         self.close_out(bar)
 
 
-if __name__ == '__main__':
-    def run_strategies():
-        lsbt.run_sma_strategy(42, 252)
-        lsbt.run_momentum_strategy(60)
-        lsbt.run_mean_reversion_strategy(50, 5)
-    lsbt = BacktestLongShort('AAPL.O', '2010-1-1', '2019-12-31', 10000,
-                             verbose=False)
-    run_strategies()
-    # transaction costs: 10 USD fix, 1% variable
-    lsbt = BacktestLongShort('AAPL.O', '2010-1-1', '2019-12-31',
-                             10000, 10.0, 0.01, False)
-    run_strategies()
+lobt = BacktestLongShort('MSFT', '2022-09-01', '2024-09-21', 10000, verbose=False)
+lobt.runStrategy()

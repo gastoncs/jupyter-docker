@@ -70,7 +70,6 @@ class BacktestBase(object):
         ''' Retrieves and prepares the data.
         '''
         df = pd.read_csv("../data/MSFT/MSFT.USUSD_Candlestick_5_M_BID_01.09.2022-21.09.2024.csv")
-        df=df[0:500]
         df=df[df['Volume']!=0]
         df.rename(columns = {'Gmt time':'datetime'}, inplace = True)
         df["datetime"]=df["datetime"].str.replace(".000","")
