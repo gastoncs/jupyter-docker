@@ -102,7 +102,13 @@ class BacktestBase(object):
         '''
         date, price = self.get_date_price(bar)
         print(f'{date} | current balance {self.amount:.2f}')
-
+        
+    def net_wealth(self, bar):
+        ''' Current cash balance info.
+        '''
+        date, price = self.get_date_price(bar)
+        return self.units * price + self.amount
+        
     def print_net_wealth(self, bar):
         ''' Print out current cash balance info.
         '''

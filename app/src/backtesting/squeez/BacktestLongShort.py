@@ -102,19 +102,23 @@ class BacktestLongShort(BacktestBase):
             lastTreeOver = df2[df2['squeezeCloseToEma'] == EMA25['PRICE_ACCION_OVER_EMA'].value].tail(3).values
             lastTreeUnder = df2[df2['squeezeCloseToEma'] == EMA25['PRICE_ACCION_UNDER_EMA'].value].tail(3).values
             
+            current_date, current_price = self.get_date_price(candle)
+            
             if self.position == POSITION['NEUTRAL'].value:
                 if len(lastTreeOver) == window and close>ema25 and squeezeCloseToEma: 
                     self.go_long(candle, amount=self.initial_amount)
                     self.position = POSITION['LONG'].value
+                    buying_date, buying_price =  self.get_date_price(candle)
                 elif len(lastTreeUnder) == window and close<ema25 and squeezeCloseToEma:
                     self.go_short(candle, amount=self.initial_amount)
                     self.position = POSITION['SHORT'].value
+                    selling_date, selling_price =  self.get_date_price(candle)
             elif self.position == POSITION['LONG'].value:
-                if self.data['squeezeCloseToEma'].iloc[candle] == EMA25['PRICE_ACCION_OVER_EMA'].value:
+                if abs((current_price/buying_price-1) * 100) == 50:
                     self.place_sell_order(candle, units=self.units)
                     self.position = POSITION['NEUTRAL'].value
             elif self.position == POSITION['SHORT'].value:
-                if self.data['squeezeCloseToEma'].iloc[candle] == EMA25['PRICE_ACCION_UNDER_EMA'].value:
+                if abs((selling_price/current_price-1) * 100) == 50:
                     self.place_buy_order(candle, units=self.units)
                     self.position = POSITION['NEUTRAL'].value
         

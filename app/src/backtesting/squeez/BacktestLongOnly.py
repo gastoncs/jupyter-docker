@@ -80,17 +80,20 @@ class BacktestLongOnly(BacktestBase):
 
             df2 = df.iloc[candle-window:candle]
             lastTreeOver = df2[df2['squeezeCloseToEma'] == EMA25['PRICE_ACCION_OVER_EMA'].value].tail(3).values
+
+            current_date, current_price = self.get_date_price(candle)
             
             if self.position == POSITION['NEUTRAL'].value: 
                 if len(lastTreeOver) == window and close>ema25 and squeezeCloseToEma: 
                     self.place_buy_order(candle, amount=self.amount)
                     self.position = POSITION['LONG'].value
+                    buying_date, buying_price =  self.get_date_price(candle)
             elif self.position == POSITION['LONG'].value:
-                if self.data['squeezeCloseToEma'].iloc[candle] == EMA25['PRICE_ACCION_OVER_EMA'].value:
+                if abs((current_price/buying_price-1) * 100) == 1:
                     self.place_sell_order(candle, units=self.units)
                     self.position = POSITION['NEUTRAL'].value
                     
         self.close_out(candle)
     
-lobt = BacktestLongOnly('MSFT', '2022-09-01', '2024-09-21', 25000, verbose=False)
+lobt = BacktestLongOnly('MSFT', '2022-09-01', '2024-09-21', 25000, verbose=True)
 lobt.runStrategy()
