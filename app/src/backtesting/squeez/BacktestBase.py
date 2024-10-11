@@ -11,7 +11,8 @@ import pandas as pd
 from pylab import mpl, plt
 plt.style.use('seaborn-v0_8')
 mpl.rcParams['font.family'] = 'serif'
-
+from zoneinfo import ZoneInfo
+from datetime import datetime, timezone
 
 class BacktestBase(object):
     ''' Base class for event-based backtesting of trading strategies.
@@ -70,12 +71,19 @@ class BacktestBase(object):
         ''' Retrieves and prepares the data.
         '''
         df = pd.read_csv("../data/MSFT/MSFT.USUSD_Candlestick_5_M_BID_01.09.2022-21.09.2024.csv")
+        #df=df[0:30000]
         df=df[df['Volume']!=0]
-        df.rename(columns = {'Gmt time':'datetime'}, inplace = True)
-        df["datetime"]=df["datetime"].str.replace(".000","")
-        df['datetime']=pd.to_datetime(df['datetime'],format='%d.%m.%Y %H:%M:%S')    
-        df['price'] = df['Close']
         
+        df["Gmt time"]=df["Gmt time"].str.replace(".000","")
+        df['Gmt time']=pd.to_datetime(df['Gmt time'],format='%d.%m.%Y %H:%M:%S')
+        df.rename(columns = {'Gmt time':'datetime_gmt'}, inplace = True)
+        df['datetime_est']=pd.to_datetime(df["datetime_gmt"], unit='ms').dt.tz_localize('UTC').dt.tz_convert('US/Eastern')
+    
+        # Regular hours
+        df.index = df['datetime_est']
+        df.between_time("09:30", "16:00")
+        
+        df['price'] = df['Close']
         df=df[df.High!=df.Low]
         
         df.reset_index(drop=True, inplace=True)

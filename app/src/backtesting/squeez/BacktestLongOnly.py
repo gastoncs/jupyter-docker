@@ -62,7 +62,14 @@ class BacktestLongOnly(BacktestBase):
         ''' Backtesting Squeeze Strategy.
         '''
         df=self.data
+
+        #stop = '((close/ema25-1)*100 >=-10)'
+        stop = 'close<ema25'
+        target = '(current_price-buying_price) >= 2'
+        
         msg = f'\n\nRunning Squeeze strategy'
+        msg += f'\nstop:   {stop} '
+        msg += f'\ntarget: {target} '
         msg += f'\nfixed costs {self.ftc} '
         msg += f'proportional costs {self.ptc}'
         print(msg)
@@ -71,13 +78,16 @@ class BacktestLongOnly(BacktestBase):
         self.trades = 0  # no trades yet
         self.amount = self.initial_amount  # reset initial capital
         window = 3
-
+        log = []
+        
         for candle in range(0, len(df)):
 
             ema25 = (df.iloc[candle]).ema25
             close = (df.iloc[candle]).Close 
+            low = (df.iloc[candle]).Low 
             squeezeCloseToEma = (df.iloc[candle]).squeezeCloseToEma 
-
+            datetime = (df.iloc[candle]).datetime
+            
             df2 = df.iloc[candle-window:candle]
             lastTreeOver = df2[df2['squeezeCloseToEma'] == EMA25['PRICE_ACCION_OVER_EMA'].value].tail(3).values
 
@@ -88,12 +98,25 @@ class BacktestLongOnly(BacktestBase):
                     self.place_buy_order(candle, amount=self.amount)
                     self.position = POSITION['LONG'].value
                     buying_date, buying_price =  self.get_date_price(candle)
+                    transaction = [datetime, 'long', candle, buying_price, 0, 0, 0]
+                    
             elif self.position == POSITION['LONG'].value:
-                if abs((current_price/buying_price-1) * 100) == 1:
+
+                stop   = close<ema25
+                target = (current_price-buying_price) >= 2
+                
+                if stop or target:
                     self.place_sell_order(candle, units=self.units)
                     self.position = POSITION['NEUTRAL'].value
+                    current_date,  sell_price = self.get_date_price(candle)
+                    transaction[4] = candle
+                    transaction[5] = sell_price
+                    transaction[6] = (sell_price/transaction[3]-1)*100
+                    log.append(transaction)
                     
         self.close_out(candle)
-    
-lobt = BacktestLongOnly('MSFT', '2022-09-01', '2024-09-21', 25000, verbose=True)
+        #df2 = pd.DataFrame(log, columns=['datetime','direction','buy_index','buy','sell_index','sell','performance'])
+        #df2.to_csv('backtest.csv', index=False)
+
+lobt = BacktestLongOnly('MSFT', '2022-09-01', '2024-09-21', 25000, verbose=False)
 lobt.runStrategy()
