@@ -9,10 +9,10 @@
 import numpy as np
 import pandas as pd
 from pylab import mpl, plt
-plt.style.use('seaborn-v0_8')
-mpl.rcParams['font.family'] = 'serif'
 from zoneinfo import ZoneInfo
 from datetime import datetime, timezone
+plt.style.use('seaborn-v0_8')
+mpl.rcParams['font.family'] = 'serif'
 
 class BacktestBase(object):
     ''' Base class for event-based backtesting of trading strategies.
@@ -71,7 +71,7 @@ class BacktestBase(object):
         ''' Retrieves and prepares the data.
         '''
         df = pd.read_csv("../data/MSFT/MSFT.USUSD_Candlestick_5_M_BID_01.09.2022-21.09.2024.csv")
-        #df=df[0:30000]
+        df=df[0:50000]
         df=df[df['Volume']!=0]
         
         df["Gmt time"]=df["Gmt time"].str.replace(".000","")
