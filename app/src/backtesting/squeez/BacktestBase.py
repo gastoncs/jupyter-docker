@@ -73,22 +73,20 @@ class BacktestBase(object):
         df = pd.read_csv("../data/MSFT/MSFT.USUSD_Candlestick_5_M_BID_01.09.2022-21.09.2024.csv")
         df=df[0:50000]
         df=df[df['Volume']!=0]
+        df=df[df.High!=df.Low]
         
         df["Gmt time"]=df["Gmt time"].str.replace(".000","")
         df['Gmt time']=pd.to_datetime(df['Gmt time'],format='%d.%m.%Y %H:%M:%S')
         df.rename(columns = {'Gmt time':'datetime_gmt'}, inplace = True)
         df['datetime_est']=pd.to_datetime(df["datetime_gmt"], unit='ms').dt.tz_localize('UTC').dt.tz_convert('US/Eastern')
-    
+        
         # Regular hours
         df.index = df['datetime_est']
         df.between_time("09:30", "16:00")
         
         df['price'] = df['Close']
-        df=df[df.High!=df.Low]
-        
-        df.reset_index(drop=True, inplace=True)
-        pd.options.mode.copy_on_write = True
-        
+
+        df.reset_index(drop=True, inplace=True) 
         self.data = df.dropna()
 
     def plot_data(self, cols=None):
