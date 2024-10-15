@@ -141,7 +141,7 @@ class BacktestLongOnly(BacktestBase):
                 #stop   = (close<ema25 or squeezedArea==EMA25['PRICE_ACCION_UNDER_EMA'].value)
                 #stop = (current_price-buying_price) <= .50
                 stop   = close<ema25
-                target = (buying_price-current_price) >= 1.5
+                target = (buying_price-current_price) >= 3
                 
                 if stop or target:
                     self.place_sell_order(candle, units=self.units)
