@@ -18,8 +18,9 @@ class POSITION(enum.Enum):
     
 class EMA25(enum.Enum):
     PRICE_ACCION_NEUTRAL_EMA = 0
-    PRICE_ACCION_UNDER_EMA = 1
-    PRICE_ACCION_OVER_EMA = 2
+    PRICE_ACCION_OVER_EMA = 1
+    PRICE_ACCION_UNDER_EMA = 2
+
     
 class BacktestLongOnly(BacktestBase):
     def __init__(self, symbol, start, end, amount, ftc=0.0, ptc=0.0, verbose=True):
@@ -172,14 +173,15 @@ class BacktestLongOnly(BacktestBase):
                     self.place_buy_order(candle, amount=self.amount)
                     self.position = POSITION['LONG'].value
                     buying_date, buying_price =  self.get_date_price(candle)
-                    transaction = [datetime, 'long', candle, buying_price, 0, 0, 0]
+                    transaction = [datetime, 'long', candle, buying_price, 0, 0, 0, 0]
                     
             elif self.position == POSITION['LONG'].value:
 
                 #stop   = (close<ema25 or squeezedArea==EMA25['PRICE_ACCION_UNDER_EMA'].value)
                 #stop = (current_price-buying_price) <= 1
                 stop   = close<ema25
-                target = (buying_price-current_price) >= 2
+                #stop   = (squeezedArea==EMA25['PRICE_ACCION_UNDER_EMA'].value)
+                target = (buying_price-current_price) >= 1
                 
                 if stop or target:
                     self.place_sell_order(candle, units=self.units)
@@ -187,11 +189,13 @@ class BacktestLongOnly(BacktestBase):
                     current_date,  sell_price = self.get_date_price(candle)
                     transaction[4] = candle
                     transaction[5] = sell_price
-                    transaction[6] = (sell_price/transaction[3]-1)*100
+                    transaction[6] = format(sell_price-transaction[3], '.2f')
+                    transaction[7] = format((sell_price/transaction[3]-1)*100, '.2f')
+                    
                     log.append(transaction)
                     
         self.close_out(candle)
-        df_log = pd.DataFrame(log, columns=['datetime','direction','buy_index','buy','sell_index','sell','performance'])
+        df_log = pd.DataFrame(log, columns=['datetime','direction','buy_index','buy','sell_index','sell','dolar_move','performance'])
         df_log.to_csv('backtest.csv', index=False)
         
 lobt = BacktestLongOnly('MSFT', '2022-09-01', '2024-09-21', 25000, verbose=False)

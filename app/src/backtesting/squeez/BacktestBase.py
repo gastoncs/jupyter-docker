@@ -70,11 +70,9 @@ class BacktestBase(object):
     def get_data(self):
         ''' Retrieves and prepares the data.
         '''
-        df = pd.read_csv("../data/MSFT/MSFT.USUSD_Candlestick_5_M_ASK_05.10.2022-05.10.2024.csv")
-        df2 = pd.read_csv("../data/MSFT/MSFT.USUSD_Candlestick_1_D_ASK_05.10.2022-05.10.2024.csv")
+        df = pd.read_csv("../data/SPY/SPY.USUSD_Candlestick_5_M_ASK_05.10.2022-05.10.2024.csv")
+        df2 = pd.read_csv("../data/SPY/SPY.USUSD_Candlestick_1_D_ASK_05.10.2022-05.10.2024.csv")
         df2.reset_index(drop=True, inplace=True)
-        
-        #df=df[0:50]
         
         df['Gmt time']=df["Gmt time"].str.replace(".000","")
         df['Gmt time']=pd.to_datetime(df['Gmt time'],format='%d.%m.%Y %H:%M:%S')
@@ -96,8 +94,8 @@ class BacktestBase(object):
         df.rename(columns = {'Gmt time_x':'datetime_gmt'}, inplace = True)
         df['datetime_est']=pd.to_datetime(df["Gmt time"], unit='ms').dt.tz_localize('UTC').dt.tz_convert('US/Eastern')
 
-        fromTodayStart = '2022-01-01 09:30:00'
-        toNow   = '2023-01-01 16:00:00'
+        fromTodayStart = '2023-01-01 09:30:00'
+        toNow   = '2023-06-01 16:00:00'
         df = df[df['datetime_est'].between(fromTodayStart, toNow)]
         
         df = pd.merge(df, df2, how="right", on=["YMD"])
