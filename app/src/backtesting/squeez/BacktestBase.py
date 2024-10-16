@@ -70,25 +70,54 @@ class BacktestBase(object):
     def get_data(self):
         ''' Retrieves and prepares the data.
         '''
-        df = pd.read_csv("../data/MSFT/MSFT.USUSD_Candlestick_5_M_BID_01.09.2022-21.09.2024.csv")
-        df=df[0:50000]
-        df=df[df['Volume']!=0]
-        df=df[df.High!=df.Low]
+        df = pd.read_csv("../data/MSFT/MSFT.USUSD_Candlestick_5_M_ASK_05.10.2022-05.10.2024.csv")
+        df2 = pd.read_csv("../data/MSFT/MSFT.USUSD_Candlestick_1_D_ASK_05.10.2022-05.10.2024.csv")
+        df2.reset_index(drop=True, inplace=True)
         
-        df["Gmt time"]=df["Gmt time"].str.replace(".000","")
+        #df=df[0:50]
+        
+        df['Gmt time']=df["Gmt time"].str.replace(".000","")
         df['Gmt time']=pd.to_datetime(df['Gmt time'],format='%d.%m.%Y %H:%M:%S')
-        df.rename(columns = {'Gmt time':'datetime_gmt'}, inplace = True)
-        df['datetime_est']=pd.to_datetime(df["datetime_gmt"], unit='ms').dt.tz_localize('UTC').dt.tz_convert('US/Eastern')
         
-        # Regular hours
-        df.index = df['datetime_est']
-        df.between_time("09:30", "16:00")
+        df2['Gmt time']=df2["Gmt time"].str.replace(".000","")
+        df2['Gmt time']=pd.to_datetime(df2['Gmt time'],format='%d.%m.%Y %H:%M:%S')
         
-        df['price'] = df['Close']
-
-        df.reset_index(drop=True, inplace=True) 
+        df['YMD'] = df['Gmt time'].dt.strftime('%Y%m%d')
+        df2['YMD'] = df2['Gmt time'].dt.strftime('%Y%m%d')
+    
+        df.set_index("YMD")
+        df2.set_index("YMD")
+        
         self.data = df.dropna()
+        self.data2 = df2.dropna()
+        
+    def merged_data(self, df, df2):
+        
+        df.rename(columns = {'Gmt time_x':'datetime_gmt'}, inplace = True)
+        df['datetime_est']=pd.to_datetime(df["Gmt time"], unit='ms').dt.tz_localize('UTC').dt.tz_convert('US/Eastern')
 
+        fromTodayStart = '2022-01-01 09:30:00'
+        toNow   = '2023-01-01 16:00:00'
+        df = df[df['datetime_est'].between(fromTodayStart, toNow)]
+        
+        df = pd.merge(df, df2, how="right", on=["YMD"])
+        df.rename(columns={"Open_x": "open_5min"}, inplace=True)
+        df.rename(columns={"High_x": "high_5min"}, inplace=True)
+        df.rename(columns={"Low_x": "low_5min"}, inplace=True)
+        df.rename(columns={"Volume_x": "volume_5min"}, inplace=True)
+        df.rename(columns={"Close_x": "close_5min"}, inplace=True)
+        df.rename(columns={"Close_y": "close_daily"}, inplace=True)
+
+        df['price'] = df['close_5min']
+
+        df = df[df.notnull().all(axis=1)]
+        df=df[(df.volume_5min != 0)]
+        df=df[df.high_5min!=df.low_5min]
+    
+        df.reset_index(drop=True, inplace=True)
+
+        self.data = df
+    
     def plot_data(self, cols=None):
         ''' Plots the closing prices for symbol.
         '''
