@@ -91,23 +91,29 @@ class BacktestBase(object):
         
     def merged_data(self, df, df2):
         
-        df.rename(columns = {'Gmt time_x':'datetime_gmt'}, inplace = True)
-        df['datetime_est']=pd.to_datetime(df["Gmt time"], unit='ms').dt.tz_localize('UTC').dt.tz_convert('US/Eastern')
-
-        fromTodayStart = '2023-01-01 09:30:00'
-        toNow   = '2023-06-01 16:00:00'
-        df = df[df['datetime_est'].between(fromTodayStart, toNow)]
-        
+        df3 = df[['YMD','Close','ema25_5min']].groupby('YMD').mean().dropna(how='all')
+        df3.rename(columns={"Close": "close_mean_daily"}, inplace=True)
+        df3.rename(columns={"ema25_5min": "ema25_mean_daily"}, inplace=True)
+    
         df = pd.merge(df, df2, how="right", on=["YMD"])
+        df = pd.merge(df, df3, how="right", on=["YMD"])
+        
         df.rename(columns={"Open_x": "open_5min"}, inplace=True)
         df.rename(columns={"High_x": "high_5min"}, inplace=True)
         df.rename(columns={"Low_x": "low_5min"}, inplace=True)
         df.rename(columns={"Volume_x": "volume_5min"}, inplace=True)
         df.rename(columns={"Close_x": "close_5min"}, inplace=True)
         df.rename(columns={"Close_y": "close_daily"}, inplace=True)
-
+        df.rename(columns={'Gmt time_x':'datetime_gmt'}, inplace = True)
+        
+        df['datetime_est']=pd.to_datetime(df["datetime_gmt"], unit='ms').dt.tz_localize('UTC').dt.tz_convert('US/Eastern')
+    
         df['price'] = df['close_5min']
 
+        fromTodayStart = '2023-10-01 09:30:00'
+        toNow   = '2024-10-01 16:00:00'
+        df = df[df['datetime_est'].between(fromTodayStart, toNow)]
+        
         df = df[df.notnull().all(axis=1)]
         df=df[(df.volume_5min != 0)]
         df=df[df.high_5min!=df.low_5min]

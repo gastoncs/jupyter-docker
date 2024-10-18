@@ -30,7 +30,7 @@ class BacktestLongOnly(BacktestBase):
         df=self.data
         df2=self.data2
 
-        df['ema25'] = BacktestLongOnly.calculateEma(df,25)
+        df['ema25_5min'] = BacktestLongOnly.calculateEma(df,25)
         self.dailyEmaStacked()
 
         self.merged_data(df,df2)
@@ -55,22 +55,12 @@ class BacktestLongOnly(BacktestBase):
         
         #Bolinger Band Upper - Keltner Channel Upper
         df['bbu_minus_kcu'] = df['BBU_20_2.0'] - kc['KCUe_20_2']
-
-    def isSmaUptrend(sma, N):
-        y = sma[-N:] # Check the last N 10 points for uptrend
-        x = np.arange(len(y))
-        slope = np.polyfit(x, y, 1)[0]
-        return slope > 0
     
     def priceActionUptrendInShortTerm(self)->None:
         
         df=self.data
-        df['sma100'] = df['close_5min'].rolling(window=100).mean()
-        
-        df['isFiveMinChartUptrend'] = False
-        if not df['sma100'].dropna().empty:
-            if BacktestLongOnly.isSmaUptrend(df['sma100'], 20):
-                    df['isFiveMinChartUptrend'] = True
+        result = df.groupby(['YMD'])['close_5min'].apply(lambda x: x > x.ewm(span=25, adjust=False).mean())
+        df['isCloseAboveEma'] = result.droplevel(0)  
                 
     def detectSqueezeCloseToEMA(self, zoneWidth = .30)->None:
         
@@ -80,26 +70,26 @@ class BacktestLongOnly(BacktestBase):
         cond =(
                 (df.squeezedArea == EMA25['PRICE_ACCION_OVER_EMA'].value) &
                 (
-                    (df.open_5min > df.ema25) & (df.close_5min > df.ema25)
+                    (df.open_5min > df.ema25_5min) & (df.close_5min > df.ema25_5min)
                 ) &
                (
-                   (abs(df.open_5min-df.ema25)<=zoneWidth) | (abs(df.close_5min-df.ema25)<=zoneWidth)
+                   (abs(df.open_5min-df.ema25_5min)<=zoneWidth) | (abs(df.close_5min-df.ema25_5min)<=zoneWidth)
                )
             )
         
         df.loc[cond, 'squeezeCloseToEma'] = EMA25['PRICE_ACCION_OVER_EMA'].value
     
-        cond =((df.squeezedArea == EMA25['PRICE_ACCION_UNDER_EMA'].value) & (abs(df.high_5min-df.ema25)<=zoneWidth))
+        cond =((df.squeezedArea == EMA25['PRICE_ACCION_UNDER_EMA'].value) & (abs(df.high_5min-df.ema25_5min)<=zoneWidth))
         df.loc[cond, 'squeezeCloseToEma'] = EMA25['PRICE_ACCION_UNDER_EMA'].value
     
     def detectSqueeze(self)->None:
         
         df=self.data
         df['squeezedArea'] = EMA25['PRICE_ACCION_NEUTRAL_EMA'].value
-        cond = ((df.bbu_minus_kcu <= 0) & (df.close_5min < df.ema25))
+        cond = ((df.bbu_minus_kcu <= 0) & (df.close_5min < df.ema25_5min))
         df.loc[cond, 'squeezedArea'] = EMA25['PRICE_ACCION_UNDER_EMA'].value
         
-        cond2 =((df.bbu_minus_kcu <= 0) & (df.close_5min > df.ema25))
+        cond2 =((df.bbu_minus_kcu <= 0) & (df.close_5min > df.ema25_5min))
         df.loc[cond2, 'squeezedArea'] = EMA25['PRICE_ACCION_OVER_EMA'].value
         
     def dailyEmaStacked(self)->None:
@@ -130,8 +120,8 @@ class BacktestLongOnly(BacktestBase):
         ''' Backtesting Squeeze Strategy.
         '''
         df=self.data
-        #stop = '((close/ema25-1)*100 >=-10)'
-        stop = 'close<ema25'
+        #stop = '((close/ema25_5min-1)*100 >=-10)'
+        stop = 'close<ema25_5min'
         target = '(current_price-buying_price) >= 1'
         
         msg = f'\n\nRunning Squeeze strategy'
@@ -149,13 +139,13 @@ class BacktestLongOnly(BacktestBase):
         
         for candle in range(0, len(df)):
 
-            ema25 = (df.iloc[candle]).ema25
+            ema25_5min = (df.iloc[candle]).ema25_5min
             close = (df.iloc[candle]).close_5min 
             low = (df.iloc[candle]).low_5min 
             squeezedArea = (df.iloc[candle]).squeezedArea 
             squeezeCloseToEma = (df.iloc[candle]).squeezeCloseToEma 
             datetime = (df.iloc[candle]).datetime_est
-            isFiveMinChartUptrend = (df.iloc[candle]).isFiveMinChartUptrend 
+            isCloseAboveEma = (df.iloc[candle]).isCloseAboveEma 
             areDailyEmaStacked = (df.iloc[candle]).areDailyEmaStacked
             
             df2 = df.iloc[candle-window:candle]
@@ -165,10 +155,9 @@ class BacktestLongOnly(BacktestBase):
             
             if self.position == POSITION['NEUTRAL'].value: 
                 if len(lastTreeOver) == window and \
-                    close>ema25 and \
+                    close>ema25_5min and \
                     squeezeCloseToEma and \
-                    isFiveMinChartUptrend == True and \
-                    areDailyEmaStacked == STACKED_EMA['POSITIVE'].value:
+                    isCloseAboveEma == True:
                     
                     self.place_buy_order(candle, amount=self.amount)
                     self.position = POSITION['LONG'].value
@@ -177,11 +166,11 @@ class BacktestLongOnly(BacktestBase):
                     
             elif self.position == POSITION['LONG'].value:
 
-                #stop   = (close<ema25 or squeezedArea==EMA25['PRICE_ACCION_UNDER_EMA'].value)
+                #stop   = (close<ema25_5min or squeezedArea==EMA25['PRICE_ACCION_UNDER_EMA'].value)
                 #stop = (current_price-buying_price) <= 1
-                stop   = close<ema25
+                stop   = close<ema25_5min
                 #stop   = (squeezedArea==EMA25['PRICE_ACCION_UNDER_EMA'].value)
-                target = (buying_price-current_price) >= 1
+                target = (buying_price-current_price) >= 2
                 
                 if stop or target:
                     self.place_sell_order(candle, units=self.units)
