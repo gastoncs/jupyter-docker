@@ -73,13 +73,9 @@ class BacktestBase(object):
     def get_data(self):
         ''' Retrieves and prepares the data.
         '''
-        if self.symbol == 'SPY':
-            df = pd.read_csv("../data/SPY/SPY.USUSD_Candlestick_5_M_ASK_05.10.2022-05.10.2024.csv")
-            df2 = pd.read_csv("../data/SPY/SPY.USUSD_Candlestick_1_D_ASK_05.10.2022-05.10.2024.csv")
-        elif self.symbol == 'TSLA':
-            df = pd.read_csv("../data/TSLA/TSLA.USUSD_Candlestick_5_M_ASK_05.10.2022-05.10.2024.csv")
-            df2 = pd.read_csv("../data/TSLA/TSLA.USUSD_Candlestick_1_D_ASK_05.10.2022-05.10.2024.csv")
-        
+        df = pd.read_csv(f"../data/{self.symbol}/{self.symbol}.USUSD_Candlestick_5_M_ASK_05.10.2022-05.10.2024.csv")
+        df2 = pd.read_csv(f"../data/{self.symbol}/{self.symbol}.USUSD_Candlestick_1_D_ASK_05.10.2022-05.10.2024.csv")
+
         df2.reset_index(drop=True, inplace=True)
         
         df['Gmt time']=df["Gmt time"].str.replace(".000","")

@@ -219,10 +219,15 @@ class BacktestLongOnly(BacktestBase):
         df_log = pd.DataFrame(log, columns=['datetime','direction','symbol','buy_index', 'units', 'buying_price', 'entry_amount','sell_index','sell_price','exit_amount','gain or loss', 'performance','move', 'balance'])
 
         file_name = f"backtest_{self.symbol}.csv"
-        df_log.to_csv(file_name, index=False)
-        
+        #df_log.to_csv(file_name, index=False)
+        #df_log.to_csv('backtest.csv', mode='a', index=False, header=False)
+
+        store=pd.HDFStore("backtest_data.h5", "w")  
+        store.put("data", df_log, format="table") 
+        store.close()
+
 lobt = BacktestLongOnly('SPY', '2022-09-01', '2024-09-21', 10000, verbose=False)
 lobt.runStrategy()
 
-lobt = BacktestLongOnly('TSLA', '2022-09-01', '2024-09-21', 10000, verbose=False)
-lobt.runStrategy()
+#lobt = BacktestLongOnly('TSLA', '2022-09-01', '2024-09-21', 10000, verbose=False)
+#lobt.runStrategy()
