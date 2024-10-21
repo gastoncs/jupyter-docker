@@ -138,6 +138,7 @@ class BacktestLongOnly(BacktestBase):
         target = '(buying_price-current_price) >= 2'
         
         msg = f'\n\nRunning Squeeze strategy'
+        msg += f'\nSymbol:  {self.symbol} '
         msg += f'\nstop:   {stop} '
         msg += f'\ntarget: {target} '
         msg += f'\nfixed costs {self.ftc} '
@@ -179,7 +180,7 @@ class BacktestLongOnly(BacktestBase):
                     buying_price_formated = '${:,.2f}'.format(buying_price, '.2f')
                     entry_amount_formated = '${:,.2f}'.format(entry_amount, '.2f')
                     
-                    transaction = [datetime, 'long', candle, self.units, buying_price_formated, entry_amount_formated, 0, 0, 0, 0, 0, 0]
+                    transaction = [datetime, 'long', self.symbol ,candle, self.units, buying_price_formated, entry_amount_formated, 0, 0, 0, 0, 0, 0]
                     
             elif self.position == POSITION['LONG'].value:
 
@@ -203,21 +204,23 @@ class BacktestLongOnly(BacktestBase):
                     move = format(sell_price-buying_price, '.2f')
                     balance = '${:,.2f}'.format(self.amount, '.2f')
                     
-                    transaction[6] = candle
-                    transaction[7] = sell_price_formated
-                    transaction[8] = exit_amount_formated
-                    transaction[9] = performance
-                    transaction[10] = move
-                    transaction[11] = balance
+                    transaction[7] = candle
+                    transaction[8] = sell_price_formated
+                    transaction[9] = exit_amount_formated
+                    transaction[10] = performance
+                    transaction[11] = move
+                    transaction[12] = balance
     
                     log.append(transaction)
                     
         self.close_out(candle)
-        df_log = pd.DataFrame(log, columns=['datetime','direction','buy_index', 'units', 'buying_price', 'entry_amount','sell_index','sell_price','exit_amount','performance','move', 'balance'])
-        df_log.to_csv('backtest.csv', index=False)
+        df_log = pd.DataFrame(log, columns=['datetime','direction','symbol','buy_index', 'units', 'buying_price', 'entry_amount','sell_index','sell_price','exit_amount','performance','move', 'balance'])
+
+        file_name = f"backtest_{self.symbol}.csv"
+        df_log.to_csv(file_name, index=False)
         
-lobt = BacktestLongOnly('SPY', '2022-09-01', '2024-09-21', 25000, verbose=False)
+lobt = BacktestLongOnly('SPY', '2022-09-01', '2024-09-21', 10000, verbose=False)
 lobt.runStrategy()
 
-lobt = BacktestLongOnly('TSLA', '2022-09-01', '2024-09-21', 25000, verbose=False)
+lobt = BacktestLongOnly('TSLA', '2022-09-01', '2024-09-21', 10000, verbose=False)
 lobt.runStrategy()
