@@ -180,7 +180,7 @@ class BacktestLongOnly(BacktestBase):
                     buying_price_formated = '${:,.2f}'.format(buying_price, '.2f')
                     entry_amount_formated = '${:,.2f}'.format(entry_amount, '.2f')
                     
-                    transaction = [datetime, 'long', self.symbol ,candle, self.units, buying_price_formated, entry_amount_formated, 0, 0, 0, 0, 0, 0]
+                    transaction = [datetime, 'long', self.symbol ,candle, self.units, buying_price_formated, entry_amount_formated, 0, 0, 0, 0, 0, 0, 0]
                     
             elif self.position == POSITION['LONG'].value:
 
@@ -203,18 +203,20 @@ class BacktestLongOnly(BacktestBase):
                     performance = format((exit_amount/entry_amount-1)*100, '.2f')
                     move = format(sell_price-buying_price, '.2f')
                     balance = '${:,.2f}'.format(self.amount, '.2f')
+                    gain_or_loss = '${:,.2f}'.format(exit_amount - entry_amount, '.2f')
                     
                     transaction[7] = candle
                     transaction[8] = sell_price_formated
                     transaction[9] = exit_amount_formated
-                    transaction[10] = performance
-                    transaction[11] = move
-                    transaction[12] = balance
+                    transaction[10] = gain_or_loss
+                    transaction[11] = performance
+                    transaction[12] = move
+                    transaction[13] = balance
     
                     log.append(transaction)
                     
         self.close_out(candle)
-        df_log = pd.DataFrame(log, columns=['datetime','direction','symbol','buy_index', 'units', 'buying_price', 'entry_amount','sell_index','sell_price','exit_amount','performance','move', 'balance'])
+        df_log = pd.DataFrame(log, columns=['datetime','direction','symbol','buy_index', 'units', 'buying_price', 'entry_amount','sell_index','sell_price','exit_amount','gain or loss', 'performance','move', 'balance'])
 
         file_name = f"backtest_{self.symbol}.csv"
         df_log.to_csv(file_name, index=False)
