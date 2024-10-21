@@ -66,6 +66,7 @@ class BacktestBase(object):
         self.units = 0
         self.position = 0
         self.trades = 0
+        self.perf = 0
         self.verbose = verbose
         self.get_data()
 
@@ -92,13 +93,8 @@ class BacktestBase(object):
         self.data2 = df2.dropna()
         
     def merged_data(self, df, df2):
-        
-        df3 = df[['YMD','Close','ema25_5min']].groupby('YMD').mean().dropna(how='all')
-        df3.rename(columns={"Close": "close_mean_daily"}, inplace=True)
-        df3.rename(columns={"ema25_5min": "ema25_mean_daily"}, inplace=True)
     
         df = pd.merge(df, df2, how="right", on=["YMD"])
-        df = pd.merge(df, df3, how="right", on=["YMD"])
         
         df.rename(columns={"Open_x": "open_5min"}, inplace=True)
         df.rename(columns={"High_x": "high_5min"}, inplace=True)
@@ -109,7 +105,6 @@ class BacktestBase(object):
         df.rename(columns={'Gmt time_x':'datetime_gmt'}, inplace = True)
         
         df['datetime_est']=pd.to_datetime(df["datetime_gmt"], unit='ms').dt.tz_localize('UTC').dt.tz_convert('US/Eastern')
-        df["close5min_smooth"] = savgol_filter(df.close_5min, 49, 5)
         df["close5min_smooth"] = savgol_filter(df.close_5min, 49, 5)
         df["high5min_smooth"] = savgol_filter(df.high_5min, 49, 5)
         df["low5min_smooth"] = savgol_filter(df.low_5min, 49, 5)
@@ -200,8 +195,8 @@ class BacktestBase(object):
             print(f'{date} | inventory {self.units} units at {price:.2f}')
             print('=' * 55)
         print('Final balance   [$] {:.2f}'.format(self.amount))
-        perf = ((self.amount - self.initial_amount) /
+        self.perf = ((self.amount - self.initial_amount) /
                 self.initial_amount * 100)
-        print('Net Performance [%] {:.2f}'.format(perf))
+        print('Net Performance [%] {:.2f}'.format(self.perf))
         print('Trades Executed [#] {}'.format(self.trades))
         print('=' * 55)

@@ -25,7 +25,7 @@ class EMA25(enum.Enum):
 class BacktestLongOnly(BacktestBase):
     def __init__(self, symbol, start, end, amount, ftc=0.0, ptc=0.0, verbose=True):
 
-        super().__init__(symbol, start, end, amount, ftc, ptc, verbose)
+        super().__init__(symbol, start, end, amount, ftc, ptc, verbose=True)
 
         df=self.data
         df2=self.data2
@@ -134,7 +134,6 @@ class BacktestLongOnly(BacktestBase):
         ''' Backtesting Squeeze Strategy.
         '''
         df=self.data
-        #stop = '((close/ema25_5min-1)*100 >=-10)'
         stop = 'close<ema25_5min'
         target = '(current_price-buying_price) >= 1'
         
@@ -167,39 +166,47 @@ class BacktestLongOnly(BacktestBase):
             lastTreeOver = df2[df2['squeezeCloseToEma'] == EMA25['PRICE_ACCION_OVER_EMA'].value].tail(3).values
 
             current_date, current_price = self.get_date_price(candle)
-            
+
+            initial_amount = self.amount
             if self.position == POSITION['NEUTRAL'].value: 
                 if len(lastTreeOver) == window and \
                     squeezeCloseToEma == EMA25['PRICE_ACCION_OVER_EMA'].value and \
-                    areDailyEmaStacked == STACKED_EMA['POSITIVE'].value and \
                     isTheDayAbove25Ema == True:
                     
                     self.place_buy_order(candle, amount=self.amount)
                     self.position = POSITION['LONG'].value
                     buying_date, buying_price =  self.get_date_price(candle)
-                    transaction = [datetime, 'long', candle, buying_price, 0, 0, 0, 0]
+
+                    entry_amount = buying_price * self.units
+                    transaction = [datetime, 'long', candle, format(self.units, '.2f'), format(buying_price, '.2f'), format(entry_amount, '.2f'), 0, 0, 0, 0, 0, 0]
                     
             elif self.position == POSITION['LONG'].value:
 
-                #stop   = (close<ema25_5min or squeezedArea==EMA25['PRICE_ACCION_UNDER_EMA'].value)
-                #stop = (current_price-buying_price) <= 1
+                #stop   = (close5minSmooth<ema25_5min or squeezedArea==EMA25['PRICE_ACCION_UNDER_EMA'].value) NOO!! 2.94
+                #stop   = (squeezedArea==EMA25['PRICE_ACCION_UNDER_EMA'].value) NO!!
+                #stop = (current_price-buying_price) <= -1 
                 stop   = close5minSmooth<ema25_5min
-                #stop   = (squeezedArea==EMA25['PRICE_ACCION_UNDER_EMA'].value)
-                target = (buying_price-current_price) >= 2
+                target = (buying_price-current_price) >= 3 
                 
                 if stop or target:
+                    units_before_sell = self.units
                     self.place_sell_order(candle, units=self.units)
                     self.position = POSITION['NEUTRAL'].value
                     current_date,  sell_price = self.get_date_price(candle)
-                    transaction[4] = candle
-                    transaction[5] = sell_price
-                    transaction[6] = format(sell_price-transaction[3], '.2f')
-                    transaction[7] = format((sell_price/transaction[3]-1)*100, '.2f')
+
+                    exit_amount = sell_price * units_before_sell
                     
+                    transaction[6] = candle
+                    transaction[7] = format(sell_price, '.2f')
+                    transaction[8] = format(sell_price * units_before_sell, '.2f')
+                    transaction[9] = format((exit_amount/entry_amount-1)*100, '.2f')
+                    transaction[10] = format(sell_price-buying_price, '.2f')
+                    transaction[11] = format(self.amount, '.2f')
+    
                     log.append(transaction)
                     
         self.close_out(candle)
-        df_log = pd.DataFrame(log, columns=['datetime','direction','buy_index','buy','sell_index','sell','dolar_move','performance'])
+        df_log = pd.DataFrame(log, columns=['datetime','direction','buy_index', 'units', 'buying_price', 'entry_amount','sell_index','sell_price','exit_amount','performance','move', 'balance'])
         df_log.to_csv('backtest.csv', index=False)
         
 lobt = BacktestLongOnly('MSFT', '2022-09-01', '2024-09-21', 25000, verbose=False)
