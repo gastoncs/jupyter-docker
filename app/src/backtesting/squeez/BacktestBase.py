@@ -109,8 +109,11 @@ class BacktestBase(object):
         df.rename(columns={'Gmt time_x':'datetime_gmt'}, inplace = True)
         
         df['datetime_est']=pd.to_datetime(df["datetime_gmt"], unit='ms').dt.tz_localize('UTC').dt.tz_convert('US/Eastern')
-        df["close_smooth"] = savgol_filter(df.close_5min, 49, 5)
-        
+        df["close5min_smooth"] = savgol_filter(df.close_5min, 49, 5)
+        df["close5min_smooth"] = savgol_filter(df.close_5min, 49, 5)
+        df["high5min_smooth"] = savgol_filter(df.high_5min, 49, 5)
+        df["low5min_smooth"] = savgol_filter(df.low_5min, 49, 5)
+    
         df['price'] = df['close_5min']
 
         fromTodayStart = '2023-10-01 09:30:00'
