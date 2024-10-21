@@ -23,7 +23,7 @@ class EMA25(enum.Enum):
 
     
 class BacktestLongOnly(BacktestBase):
-    def __init__(self, symbol, start, end, amount, ftc=0.0, ptc=0.0, verbose=True):
+    def __init__(self, symbol, start, end, amount, ftc=0.0, ptc=0.0, verbose=False):
 
         super().__init__(symbol, start, end, amount, ftc, ptc, verbose=False)
 
@@ -153,8 +153,6 @@ class BacktestLongOnly(BacktestBase):
         for candle in range(0, len(df)):
 
             ema25_5min = (df.iloc[candle]).ema25_5min
-            close = (df.iloc[candle]).close_5min 
-            low = (df.iloc[candle]).low_5min 
             squeezedArea = (df.iloc[candle]).squeezedArea 
             squeezeCloseToEma = (df.iloc[candle]).squeezeCloseToEma 
             datetime = (df.iloc[candle]).datetime_est
@@ -218,5 +216,8 @@ class BacktestLongOnly(BacktestBase):
         df_log = pd.DataFrame(log, columns=['datetime','direction','buy_index', 'units', 'buying_price', 'entry_amount','sell_index','sell_price','exit_amount','performance','move', 'balance'])
         df_log.to_csv('backtest.csv', index=False)
         
-lobt = BacktestLongOnly('MSFT', '2022-09-01', '2024-09-21', 25000, verbose=False)
+lobt = BacktestLongOnly('SPY', '2022-09-01', '2024-09-21', 25000, verbose=False)
+lobt.runStrategy()
+
+lobt = BacktestLongOnly('TSLA', '2022-09-01', '2024-09-21', 25000, verbose=False)
 lobt.runStrategy()
