@@ -25,7 +25,7 @@ class EMA25(enum.Enum):
 class BacktestLongOnly(BacktestBase):
     def __init__(self, symbol, start, end, amount, ftc=0.0, ptc=0.0, verbose=True):
 
-        super().__init__(symbol, start, end, amount, ftc, ptc, verbose=True)
+        super().__init__(symbol, start, end, amount, ftc, ptc, verbose=False)
 
         df=self.data
         df2=self.data2
@@ -134,8 +134,8 @@ class BacktestLongOnly(BacktestBase):
         ''' Backtesting Squeeze Strategy.
         '''
         df=self.data
-        stop = 'close<ema25_5min'
-        target = '(current_price-buying_price) >= 1'
+        stop = 'close5minSmooth < ema25_5min'
+        target = '(buying_price-current_price) >= 2'
         
         msg = f'\n\nRunning Squeeze strategy'
         msg += f'\nstop:   {stop} '
@@ -178,7 +178,10 @@ class BacktestLongOnly(BacktestBase):
                     buying_date, buying_price =  self.get_date_price(candle)
 
                     entry_amount = buying_price * self.units
-                    transaction = [datetime, 'long', candle, format(self.units, '.2f'), format(buying_price, '.2f'), format(entry_amount, '.2f'), 0, 0, 0, 0, 0, 0]
+                    buying_price_formated = '${:,.2f}'.format(buying_price, '.2f')
+                    entry_amount_formated = '${:,.2f}'.format(entry_amount, '.2f')
+                    
+                    transaction = [datetime, 'long', candle, self.units, buying_price_formated, entry_amount_formated, 0, 0, 0, 0, 0, 0]
                     
             elif self.position == POSITION['LONG'].value:
 
@@ -186,7 +189,7 @@ class BacktestLongOnly(BacktestBase):
                 #stop   = (squeezedArea==EMA25['PRICE_ACCION_UNDER_EMA'].value) NO!!
                 #stop = (current_price-buying_price) <= -1 
                 stop   = close5minSmooth<ema25_5min
-                target = (buying_price-current_price) >= 3 
+                target = (buying_price-current_price) >= 2
                 
                 if stop or target:
                     units_before_sell = self.units
@@ -195,13 +198,19 @@ class BacktestLongOnly(BacktestBase):
                     current_date,  sell_price = self.get_date_price(candle)
 
                     exit_amount = sell_price * units_before_sell
+
+                    sell_price_formated ='${:,.2f}'.format(sell_price, '.2f')
+                    exit_amount_formated = '${:,.2f}'.format(sell_price * units_before_sell, '.2f')
+                    performance = format((exit_amount/entry_amount-1)*100, '.2f')
+                    move = format(sell_price-buying_price, '.2f')
+                    balance = '${:,.2f}'.format(self.amount, '.2f')
                     
                     transaction[6] = candle
-                    transaction[7] = format(sell_price, '.2f')
-                    transaction[8] = format(sell_price * units_before_sell, '.2f')
-                    transaction[9] = format((exit_amount/entry_amount-1)*100, '.2f')
-                    transaction[10] = format(sell_price-buying_price, '.2f')
-                    transaction[11] = format(self.amount, '.2f')
+                    transaction[7] = sell_price_formated
+                    transaction[8] = exit_amount_formated
+                    transaction[9] = performance
+                    transaction[10] = move
+                    transaction[11] = balance
     
                     log.append(transaction)
                     
