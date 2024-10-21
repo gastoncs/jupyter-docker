@@ -11,6 +11,8 @@ import pandas as pd
 from pylab import mpl, plt
 from zoneinfo import ZoneInfo
 from datetime import datetime, timezone
+from scipy.signal import savgol_filter
+
 plt.style.use('seaborn-v0_8')
 mpl.rcParams['font.family'] = 'serif'
 
@@ -107,7 +109,8 @@ class BacktestBase(object):
         df.rename(columns={'Gmt time_x':'datetime_gmt'}, inplace = True)
         
         df['datetime_est']=pd.to_datetime(df["datetime_gmt"], unit='ms').dt.tz_localize('UTC').dt.tz_convert('US/Eastern')
-    
+        df["close_smooth"] = savgol_filter(df.close_5min, 49, 5)
+        
         df['price'] = df['close_5min']
 
         fromTodayStart = '2023-10-01 09:30:00'
