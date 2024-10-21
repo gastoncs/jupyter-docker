@@ -7,3 +7,4 @@ app/src/testing/data
 app/src/practice/data
 app/src/xtb/spreads
 *.csv
+*.h5
