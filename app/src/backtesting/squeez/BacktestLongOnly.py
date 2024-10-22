@@ -132,6 +132,7 @@ class BacktestLongOnly(BacktestBase):
         df2.loc[((SP==False) & (SN==False)), 'areDailyEmaStacked'] = STACKED_EMA['NEUTRAL'].value
                 
     def runStrategy(self):
+        
         ''' Backtesting Squeeze Strategy.
         '''
         df=self.data
@@ -192,6 +193,7 @@ class BacktestLongOnly(BacktestBase):
                 target = (buying_price-current_price) >= 2
                 
                 if stop or target:
+                    
                     units_before_sell = self.units
                     self.place_sell_order(candle, units=self.units)
                     self.position = POSITION['NEUTRAL'].value
@@ -206,7 +208,6 @@ class BacktestLongOnly(BacktestBase):
                     balance =  round(self.amount,2)
                     gain_or_loss =  round(exit_amount - entry_amount,2)
                 
-                    
                     transaction[7] = candle
                     transaction[8] = sell_price_formated
                     transaction[9] = exit_amount_formated
@@ -223,10 +224,9 @@ class BacktestLongOnly(BacktestBase):
                                                 'buying_price', 'entry_amount','sell_index','sell_price','exit_amount',
                                                 'gain_or_loss', 'performance','move', 'balance'])
 
-        conn = sqlite3.connect('long_backtest_data.sql') 
-        df.to_sql('data', conn, if_exists='append')
+        conn = sq3.connect('long_backtest_data.sql') 
+        df_log.to_sql('data', conn, if_exists='append')
         conn.close()
 
-lobt = BacktestLongOnly('BTCUSD', '2022-09-01', '2024-09-21', 10000, verbose=False)
+lobt = BacktestLongOnly('AMZN', '2022-09-01', '2024-09-21', 10000, verbose=False)
 lobt.runStrategy()
-
