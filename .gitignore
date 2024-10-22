@@ -8,4 +8,5 @@ app/src/practice/data
 app/src/xtb/spreads
 *.csv
 *.h5
+*.sql
 __*/
