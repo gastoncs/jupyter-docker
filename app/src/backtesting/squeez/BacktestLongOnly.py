@@ -239,6 +239,6 @@ class BacktestLongOnly(BacktestBase):
 
             store.put("data", df_log, format="table", append=True) 
 
-lobt = BacktestLongOnly('FB', '2022-09-01', '2024-09-21', 10000, verbose=False)
+lobt = BacktestLongOnly('NFLX', '2022-09-01', '2024-09-21', 10000, verbose=False)
 lobt.runStrategy()
 
