@@ -5,6 +5,7 @@ import enum
 import math
 from BacktestBase import *
 from pandas_ta.volatility import kc 
+import sqlite3 as sq3
 
 class STACKED_EMA(enum.Enum):
     NEUTRAL = 0
@@ -197,15 +198,6 @@ class BacktestLongOnly(BacktestBase):
                     current_date,  sell_price = self.get_date_price(candle)
 
                     exit_amount = sell_price * units_before_sell
-
-                    '''
-                    sell_price_formated ='${:,.2f}'.format(sell_price, '.2f')
-                    exit_amount_formated = '${:,.2f}'.format(sell_price * units_before_sell, '.2f')
-                    performance = format((exit_amount/entry_amount-1)*100, '.2f')
-                    move = format(sell_price-buying_price, '.2f')
-                    balance = '${:,.2f}'.format(self.amount, '.2f')
-                    gain_or_loss = '${:,.2f}'.format(exit_amount - entry_amount, '.2f')
-                    '''
                     
                     sell_price_formated = round(sell_price,2)
                     exit_amount_formated =  round(sell_price * units_before_sell,2)
@@ -226,19 +218,15 @@ class BacktestLongOnly(BacktestBase):
                     log.append(transaction)
                     
         self.close_out(candle)
-
-        with pd.HDFStore('long_backtest_data.h5', mode='a') as store:
         
-            df_log = pd.DataFrame(log, columns=['datetime','direction','symbol','buy_index', 'units', 
+        df_log = pd.DataFrame(log, columns=['datetime','direction','symbol','buy_index', 'units', 
                                                 'buying_price', 'entry_amount','sell_index','sell_price','exit_amount',
                                                 'gain_or_loss', 'performance','move', 'balance'])
 
-            #file_name = f"backtest_{self.symbol}.csv"
-            #df_log.to_csv(file_name, index=False)
-            #df_log.to_csv('backtest.csv', mode='a', index=False, header=False)
+        conn = sqlite3.connect('long_backtest_data.sql') 
+        df.to_sql('data', conn, if_exists='append')
+        conn.close()
 
-            store.put("data", df_log, format="table", append=True) 
-
-lobt = BacktestLongOnly('GOOGL', '2022-09-01', '2024-09-21', 10000, verbose=False)
+lobt = BacktestLongOnly('BTCUSD', '2022-09-01', '2024-09-21', 10000, verbose=False)
 lobt.runStrategy()
 
