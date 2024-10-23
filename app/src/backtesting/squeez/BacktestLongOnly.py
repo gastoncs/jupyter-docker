@@ -163,8 +163,8 @@ class BacktestLongOnly(BacktestBase):
             areDailyEmaStacked = (df.iloc[candle]).areDailyEmaStacked
             close5minSmooth = (df.iloc[candle]).close5min_smooth
             
-            df2 = df.iloc[candle-window:candle]
-            lastTreeOver = df2[df2['squeezeCloseToEma'] == EMA25['PRICE_ACCION_OVER_EMA'].value].tail(3).values
+            window_df = df.iloc[candle-window:candle]
+            lastTreeOver = window_df[window_df['squeezeCloseToEma'] == EMA25['PRICE_ACCION_OVER_EMA'].value].tail(3).values
 
             current_date, current_price = self.get_date_price(candle)
 
@@ -228,5 +228,5 @@ class BacktestLongOnly(BacktestBase):
         df_log.to_sql('data', conn, if_exists='append')
         conn.close()
 
-lobt = BacktestLongOnly('AMZN', '2022-09-01', '2024-09-21', 10000, verbose=False)
+lobt = BacktestLongOnly('IWM', '2022-09-01', '2024-09-21', 10000, verbose=False)
 lobt.runStrategy()

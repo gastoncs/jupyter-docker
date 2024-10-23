@@ -1,8 +1,9 @@
-user_id=51033084
-pwd='Barullo#205'
+#user_id=51033084
+user_id=16933865
+pwd='Barullo205'
 sender='gastoncortess@gmail.com'
 receiver='gastoncortess@gmail.com'
-port=""
-server='gastoncortess@gmail.com'
-email_pwd=""
+port= 465
+server='smtp.gmail.com'
+email_pwd="bmmk otrf alfc pyxd"
 spread_folder='/home/jovyan/src/xtb/spreads/'
