@@ -2,7 +2,6 @@ import pandas as pd
 import numpy as np
 import pandas_ta as ta
 import enum
-import math
 from BacktestBase import *
 from pandas_ta.volatility import kc 
 import sqlite3 as sq3
@@ -31,7 +30,7 @@ class BacktestLongOnly(BacktestBase):
         df=self.data
         df2=self.data2
 
-        df['ema25_5min'] = BacktestLongOnly.calculateEma(df,25)
+        df['ema25_5min'] = df['Close'].ewm(span=25, adjust=False).mean()
         self.dailyEmaStacked()
 
         self.merged_data(df,df2)
@@ -40,10 +39,6 @@ class BacktestLongOnly(BacktestBase):
         self.detectSqueeze()
         self.detectSqueezeCloseToEMA()
         self.priceActionUptrendInShortTerm()
-        
-    def calculateEma(df, span):
-        
-        return df['Close'].ewm(span=span, adjust=False).mean()
                 
     def calculateBolingerAndKeltnerChannels(self, kc)->None:
         
@@ -106,30 +101,6 @@ class BacktestLongOnly(BacktestBase):
         
         cond2 =((df.bbu_minus_kcu <= 0) & (df.close_5min > df.ema25_5min))
         df.loc[cond2, 'squeezedArea'] = EMA25['PRICE_ACCION_OVER_EMA'].value
-        
-    def dailyEmaStacked(self)->None:
-        
-        df2=self.data2
-        df2['ema89'] = BacktestLongOnly.calculateEma(df2,89)
-        df2['ema55'] = BacktestLongOnly.calculateEma(df2,55)
-        df2['ema34'] = BacktestLongOnly.calculateEma(df2,34)
-        df2['ema21'] = BacktestLongOnly.calculateEma(df2,21)
-        df2['ema8'] = BacktestLongOnly.calculateEma(df2,8)
-    
-        SP = ((df2.ema8 > df2.ema21) & \
-              (df2.ema21 > df2.ema34) & \
-              (df2.ema34 > df2.ema55) & \
-              (df2.ema55 > df2.ema89))
-        
-        df2.loc[SP, 'areDailyEmaStacked'] = STACKED_EMA['POSITIVE'].value
-        
-        SN = ((df2.ema8 < df2.ema21) & \
-              (df2.ema21 < df2.ema34) & \
-              (df2.ema34 < df2.ema55) & \
-              (df2.ema55 < df2.ema89))
-        
-        df2.loc[SN, 'areDailyEmaStacked'] = STACKED_EMA['NEGATIVE'].value    
-        df2.loc[((SP==False) & (SN==False)), 'areDailyEmaStacked'] = STACKED_EMA['NEUTRAL'].value
                 
     def runStrategy(self):
         

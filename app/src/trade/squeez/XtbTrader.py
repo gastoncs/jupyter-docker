@@ -15,7 +15,6 @@ class XtbTrader():
                  csv_results_path, client=None, email_info=True, close_order_after_session=False):
 
         '''
-
         Description
         ===============================================
         Python module let you trade with your strategy wit XTB broker
@@ -31,7 +30,6 @@ class XtbTrader():
         *csv_results_path -> str, filepath where store dataframe with price data and trading results
         *email_info ->boolean, sending email info about trading session events
         *close_order_after_session -> boolean, order shoul be active after session e.g. for a weekend
-
         '''
         
         self.email_info=email_info
