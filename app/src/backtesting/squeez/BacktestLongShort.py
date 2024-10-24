@@ -38,7 +38,7 @@ class BacktestLongShort(BacktestBase):
         self.detectSqueeze()
         self.detectSqueezeCloseToEMA()
         self.priceActionUptrendInShortTerm()
-
+        
     def go_long(self, bar, units=None, amount=None):
         
         if self.position == POSITION['SHORT'].value:
@@ -79,16 +79,22 @@ class BacktestLongShort(BacktestBase):
     def priceActionUptrendInShortTerm(self, zoneWidth = .30)->None:
         
         df=self.data
+        
+        ''' Check if the pa is above the ema if it does then is true else check if there is a wigle room of .30 cents
+        '''
         df['isPriceActionAboveEma25'] = np.where(df.ema25_5min > df.close5min_smooth, 
                                                      np.where((df.ema25_5min-df.close5min_smooth)<=zoneWidth, True, False), 
                                                  np.where(df.ema25_5min < df.close5min_smooth, True, False))
-    
+        
+        ''' If in the count of the isPriceActionAboveEma25 (in the day YMD) there are False then return False
+        '''
         df['isTheDayAbove25Ema'] = df.groupby('YMD').isPriceActionAboveEma25.transform(
             lambda x: False if x[x==False].value_counts().shape[0] > 0 else True)
         
     def detectSqueezeCloseToEMA(self, zoneWidth = .30)->None:
         
         df=self.data
+        
         df['squeezeCloseToEma'] = EMA25['PRICE_ACCION_NEUTRAL_EMA'].value
     
         ''' Over the EMA
@@ -158,8 +164,8 @@ class BacktestLongShort(BacktestBase):
         
         msg = f'\n\nRunning squeeze strategy long and short'
         msg += f'\nSymbol:  {self.symbol} '
-        msg += f'\nstop:   {stop} '
-        msg += f'\ntarget: {target} '
+        msg += f'\nStop:   {stop} '
+        msg += f'\nTarget: {target} '
         msg += f'\nfixed costs {self.ftc} '
         msg += f'proportional costs {self.ptc}'
         print(msg)
