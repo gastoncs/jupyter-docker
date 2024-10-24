@@ -4,7 +4,13 @@ import numpy as np
 import pandas_ta as ta
 from pandas_ta.volatility import kc 
 import enum
+import sqlite3 as sq3
 
+class STACKED_EMA(enum.Enum):
+    NEUTRAL = 0
+    POSITIVE = 1
+    NEGATIVE = 2
+    
 class POSITION(enum.Enum):
     NEUTRAL = 0
     LONG = 1
@@ -12,20 +18,29 @@ class POSITION(enum.Enum):
     
 class EMA25(enum.Enum):
     PRICE_ACCION_NEUTRAL_EMA = 0
-    PRICE_ACCION_UNDER_EMA = 1
-    PRICE_ACCION_OVER_EMA = 2
+    PRICE_ACCION_OVER_EMA = 1
+    PRICE_ACCION_UNDER_EMA = 2
 
 class BacktestLongShort(BacktestBase):
     def __init__(self, symbol, start, end, amount, ftc=0.0, ptc=0.0, verbose=True):
-
-        super().__init__(symbol, start, end, amount, ftc, ptc, verbose)
         
-        self.calculateEMA25()
+        super().__init__(symbol, start, end, amount, ftc, ptc, verbose)
+
+        df=self.data
+        df2=self.data2
+
+        df['ema25_5min'] = BacktestLongShort.calculateEma(df,25)
+        self.dailyEmaStacked()
+
+        self.merged_data(df,df2)
+        
         self.calculateBolingerAndKeltnerChannels(kc)
         self.detectSqueeze()
         self.detectSqueezeCloseToEMA()
-    
+        self.priceActionUptrendInShortTerm()
+
     def go_long(self, bar, units=None, amount=None):
+        
         if self.position == POSITION['SHORT'].value:
             self.place_buy_order(bar, units=-self.units)
         if units:
@@ -36,6 +51,7 @@ class BacktestLongShort(BacktestBase):
             self.place_buy_order(bar, amount=amount)
 
     def go_short(self, bar, units=None, amount=None):
+        
         if self.position == POSITION['LONG'].value:
             self.place_sell_order(bar, units=self.units)
         if units:
@@ -45,44 +61,99 @@ class BacktestLongShort(BacktestBase):
                 amount = self.amount
             self.place_sell_order(bar, amount=amount)
 
-    def calculateEMA25(self):
-        self.data['ema25'] = self.data['Close'].ewm(span=25, adjust=False).mean()
+    def calculateEma(df, span):
+        return df['Close'].ewm(span=span, adjust=False).mean()
         
     def calculateBolingerAndKeltnerChannels(self, kc)->None:
+        
         df=self.data
         # Bolinger Bands
         df.ta.bbands(append=True, length=20, std=2)
         
         # Initialize Keltner Channel Indictor
-        kc=kc(high=df['High'], low=df['Low'], close=df["Close"], window=20)
+        kc=kc(high=df['high_5min'], low=df['low_5min'], close=df["close_5min"], window=20)
         
         #Bolinger Band Upper - Keltner Channel Upper
         df['bbu_minus_kcu'] = df['BBU_20_2.0'] - kc['KCUe_20_2']
+        
+    def priceActionUptrendInShortTerm(self, zoneWidth = .30)->None:
+        
+        df=self.data
+        df['isPriceActionAboveEma25'] = np.where(df.ema25_5min > df.close5min_smooth, 
+                                                     np.where((df.ema25_5min-df.close5min_smooth)<=zoneWidth, True, False), 
+                                                 np.where(df.ema25_5min < df.close5min_smooth, True, False))
     
+        df['isTheDayAbove25Ema'] = df.groupby('YMD').isPriceActionAboveEma25.transform(
+            lambda x: False if x[x==False].value_counts().shape[0] > 0 else True)
+        
     def detectSqueezeCloseToEMA(self, zoneWidth = .30)->None:
+        
         df=self.data
         df['squeezeCloseToEma'] = EMA25['PRICE_ACCION_NEUTRAL_EMA'].value
+    
+        ''' Over the EMA
+        '''
+        cond =(
+                (df.squeezedArea == EMA25['PRICE_ACCION_OVER_EMA'].value) &
+                (
+                    abs(df.low5min_smooth-df.ema25_5min<=zoneWidth)
+                )
+            )
         
-        cond =((df.squeezedArea == EMA25['PRICE_ACCION_OVER_EMA'].value) & (abs(df.Low-df.ema25)<=zoneWidth))
         df.loc[cond, 'squeezeCloseToEma'] = EMA25['PRICE_ACCION_OVER_EMA'].value
     
-        cond =((df.squeezedArea == EMA25['PRICE_ACCION_UNDER_EMA'].value) & (abs(df.High-df.ema25)<=zoneWidth))
+        ''' Under the EMA
+        '''
+        cond =(
+            (
+                df.squeezedArea == EMA25['PRICE_ACCION_UNDER_EMA'].value
+            ) & 
+            (
+                abs(df.high5min_smooth-df.ema25_5min<=zoneWidth)
+            )
+        )
+        
         df.loc[cond, 'squeezeCloseToEma'] = EMA25['PRICE_ACCION_UNDER_EMA'].value
     
     def detectSqueeze(self)->None:
         df=self.data
         df['squeezedArea'] = EMA25['PRICE_ACCION_NEUTRAL_EMA'].value
-        cond = ((df.bbu_minus_kcu <= 0) & (df.Close < df.ema25))
+        cond = ((df.bbu_minus_kcu <= 0) & (df.close_5min < df.ema25_5min))
         df.loc[cond, 'squeezedArea'] = EMA25['PRICE_ACCION_UNDER_EMA'].value
         
-        cond2 =((df.bbu_minus_kcu <= 0) & (df.Close > df.ema25))
+        cond2 =((df.bbu_minus_kcu <= 0) & (df.close_5min > df.ema25_5min))
         df.loc[cond2, 'squeezedArea'] = EMA25['PRICE_ACCION_OVER_EMA'].value
-
+        
+    def dailyEmaStacked(self)->None:
+        
+        df2=self.data2
+        df2['ema89'] = BacktestLongShort.calculateEma(df2,89)
+        df2['ema55'] = BacktestLongShort.calculateEma(df2,55)
+        df2['ema34'] = BacktestLongShort.calculateEma(df2,34)
+        df2['ema21'] = BacktestLongShort.calculateEma(df2,21)
+        df2['ema8'] = BacktestLongShort.calculateEma(df2,8)
+    
+        SP = ((df2.ema8 > df2.ema21) & \
+              (df2.ema21 > df2.ema34) & \
+              (df2.ema34 > df2.ema55) & \
+              (df2.ema55 > df2.ema89))
+        
+        df2.loc[SP, 'areDailyEmaStacked'] = STACKED_EMA['POSITIVE'].value
+        
+        SN = ((df2.ema8 < df2.ema21) & \
+              (df2.ema21 < df2.ema34) & \
+              (df2.ema34 < df2.ema55) & \
+              (df2.ema55 < df2.ema89))
+        
+        df2.loc[SN, 'areDailyEmaStacked'] = STACKED_EMA['NEGATIVE'].value    
+        df2.loc[((SP==False) & (SN==False)), 'areDailyEmaStacked'] = STACKED_EMA['NEUTRAL'].value
+        
     def runStrategy(self):
+        
         ''' Backtesting Squeeze Strategy.
         '''
         df=self.data
-        msg = f'\n\nRunning Squeeze strategy'
+        msg = f'\n\nRunning Squeeze strategy long and short'
         msg += f'\nfixed costs {self.ftc} '
         msg += f'proportional costs {self.ptc}'
         print(msg)
@@ -91,38 +162,85 @@ class BacktestLongShort(BacktestBase):
         self.trades = 0  # no trades yet
         self.amount = self.initial_amount  # reset initial capital
         window = 3
-
+        log_sequence = []
+        
         for candle in range(0, len(df)):
 
-            ema25 = (df.iloc[candle]).ema25
-            close = (df.iloc[candle]).Close 
+            ema25_5min = (df.iloc[candle]).ema25_5min
+            squeezedArea = (df.iloc[candle]).squeezedArea 
             squeezeCloseToEma = (df.iloc[candle]).squeezeCloseToEma 
+            datetime = (df.iloc[candle]).datetime_est
+            date_est = (df.iloc[candle]).date_est
+            time_est = (df.iloc[candle]).time_est
+            isTheDayAbove25Ema = (df.iloc[candle]).isTheDayAbove25Ema 
+            areDailyEmaStacked = (df.iloc[candle]).areDailyEmaStacked
+            close5minSmooth = (df.iloc[candle]).close5min_smooth
 
             df2 = df.iloc[candle-window:candle]
             lastTreeOver = df2[df2['squeezeCloseToEma'] == EMA25['PRICE_ACCION_OVER_EMA'].value].tail(3).values
             lastTreeUnder = df2[df2['squeezeCloseToEma'] == EMA25['PRICE_ACCION_UNDER_EMA'].value].tail(3).values
             
             current_date, current_price = self.get_date_price(candle)
+            initial_amount = self.amount
             
             if self.position == POSITION['NEUTRAL'].value:
-                if len(lastTreeOver) == window and close>ema25 and squeezeCloseToEma: 
-                    self.go_long(candle, amount=self.initial_amount)
+                
+                if len(lastTreeOver) == window and \
+                    squeezeCloseToEma == EMA25['PRICE_ACCION_OVER_EMA'].value and \
+                    isTheDayAbove25Ema == True:
+
+                    self.go_long(candle, amount='all')
                     self.position = POSITION['LONG'].value
-                    buying_date, buying_price =  self.get_date_price(candle)
-                elif len(lastTreeUnder) == window and close<ema25 and squeezeCloseToEma:
-                    self.go_short(candle, amount=self.initial_amount)
+
+                    #LOG DATA
+                    buying_date, buying_price =  self.get_date_price(candle)  
+                    trans = [date_est, time_est, candle, self.symbol, self.units, round(buying_price,2), 'B']
+                    log_sequence.append(trans)
+    
+                elif len(lastTreeUnder) == window and \
+                    squeezeCloseToEma == EMA25['PRICE_ACCION_UNDER_EMA'].value and \
+                    isTheDayAbove25Ema == False:
+
+                    self.go_short(candle, amount='all')
                     self.position = POSITION['SHORT'].value
+
+                    #LOG DATA
                     selling_date, selling_price =  self.get_date_price(candle)
+                    trans = [date_est, time_est, candle, self.symbol, -self.units, round(selling_price,2), 'S']
+                    log_sequence.append(trans)
+ 
             elif self.position == POSITION['LONG'].value:
-                if abs((current_price/buying_price-1) * 100) == 50:
+                
+                stop   = close5minSmooth<ema25_5min
+                target = (current_price-buying_price) >= 2
+                
+                if stop or target:
+                    units_before_transaction = self.units
                     self.place_sell_order(candle, units=self.units)
                     self.position = POSITION['NEUTRAL'].value
+
+                    #LOG DATA
+                    trans = [date_est, time_est, candle, self.symbol, units_before_transaction, round(current_price,2), 'SELL_LONG']
+                    log_sequence.append(trans)
+            
             elif self.position == POSITION['SHORT'].value:
-                if abs((selling_price/current_price-1) * 100) == 50:
-                    self.place_buy_order(candle, units=self.units)
+                
+                stop   = close5minSmooth>ema25_5min
+                target = (selling_price-current_price) >= 2
+                
+                if stop or target:
+                    units_before_transaction = -self.units
+                    self.place_buy_order(candle, units=-self.units)
                     self.position = POSITION['NEUTRAL'].value
-        
+
+                    #LOG DATA
+                    trans = [date_est, time_est, candle, self.symbol, units_before_transaction, round(current_price,2), 'BUY_SHORT']
+                    log_sequence.append(trans)
+                    
         self.close_out(candle)
 
-lobt = BacktestLongShort('MSFT', '2022-09-01', '2024-09-21', 10000, verbose=False)
+        df_log_sequence = pd.DataFrame(log_sequence, columns=['Date','Time','Candle','Symbol','Quantity','Price','Side'])
+        df_log_sequence.to_csv('trading_result.csv', index=False)
+        
+lobt = BacktestLongShort('GOOGL', '2022-09-01', '2024-09-21', 10000, verbose=True)
 lobt.runStrategy()

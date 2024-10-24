@@ -114,8 +114,8 @@ class BacktestBase(object):
     
         df['price'] = df['close_5min']
 
-        fromTodayStart = '2022-10-05 09:30:00'
-        toNow   = '2024-10-05 16:00:00'
+        fromTodayStart = '2023-10-05 09:30:00'
+        toNow   = '2023-11-05 16:00:00'
         df = df[df['datetime_est'].between(fromTodayStart, toNow)]
         
         df = df[df.notnull().all(axis=1)]
