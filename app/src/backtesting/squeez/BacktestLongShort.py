@@ -153,11 +153,17 @@ class BacktestLongShort(BacktestBase):
         ''' Backtesting Squeeze Strategy.
         '''
         df=self.data
-        msg = f'\n\nRunning Squeeze strategy long and short'
+        stop = 'close5minSmooth<ema25_5min (long) or close5minSmooth>ema25_5min (short)'
+        target = '(current_price-buying_price) >= 2 (long) or (selling_price-current_price) >= 2 (short)'
+        
+        msg = f'\n\nRunning squeeze strategy long and short'
+        msg += f'\nSymbol:  {self.symbol} '
+        msg += f'\nstop:   {stop} '
+        msg += f'\ntarget: {target} '
         msg += f'\nfixed costs {self.ftc} '
         msg += f'proportional costs {self.ptc}'
         print(msg)
-        print('=' * 55)
+        print('=' * 94)
         self.position = POSITION['NEUTRAL'].value
         self.trades = 0  # no trades yet
         self.amount = self.initial_amount  # reset initial capital
@@ -242,5 +248,5 @@ class BacktestLongShort(BacktestBase):
         df_log_sequence = pd.DataFrame(log_sequence, columns=['Date','Time','Candle','Symbol','Quantity','Price','Side'])
         df_log_sequence.to_csv('trading_result.csv', index=False)
         
-lobt = BacktestLongShort('GOOGL', '2022-09-01', '2024-09-21', 10000, verbose=True)
+lobt = BacktestLongShort('GOOGL', '2022-09-01', '2024-09-21', 10000, verbose=False)
 lobt.runStrategy()
