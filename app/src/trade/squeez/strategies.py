@@ -64,6 +64,7 @@ def squeez(df, window=1):
         
         cond2 =((df.bbu_minus_kcu <= 0) & (df.close_5min > df.ema25_5min))
         df.loc[cond2, 'squeezedArea'] = EMA25['PRICE_ACCION_OVER_EMA'].value
+    
     return df
 
 

@@ -79,8 +79,7 @@ class BacktestBase(object):
         df2.reset_index(drop=True, inplace=True)
         
         df['Gmt time']=df["Gmt time"].str.replace(".000","")
-        df['Gmt time']=pd.to_datetime(df['Gmt time'],format='%d.%m.%Y %H:%M:%S')
-        
+        df['Gmt time']=pd.to_datetime(df['Gmt time'],format='%d.%m.%Y %H:%M:%S')        
         df2['Gmt time']=df2["Gmt time"].str.replace(".000","")
         df2['Gmt time']=pd.to_datetime(df2['Gmt time'],format='%d.%m.%Y %H:%M:%S')
         
@@ -106,6 +105,9 @@ class BacktestBase(object):
         df.rename(columns={'Gmt time_x':'datetime_gmt'}, inplace = True)
         
         df['datetime_est']=pd.to_datetime(df["datetime_gmt"], unit='ms').dt.tz_localize('UTC').dt.tz_convert('US/Eastern')
+        df['date_est']=df['datetime_est'].dt.date
+        df['time_est']=df['datetime_est'].dt.time
+        
         df["close5min_smooth"] = savgol_filter(df.close_5min, 49, 5)
         df["high5min_smooth"] = savgol_filter(df.high_5min, 49, 5)
         df["low5min_smooth"] = savgol_filter(df.low_5min, 49, 5)

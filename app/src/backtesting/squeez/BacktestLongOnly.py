@@ -152,6 +152,7 @@ class BacktestLongOnly(BacktestBase):
         self.amount = self.initial_amount  # reset initial capital
         window = 3
         log = []
+        log_sequence = []
         
         for candle in range(0, len(df)):
 
@@ -159,6 +160,8 @@ class BacktestLongOnly(BacktestBase):
             squeezedArea = (df.iloc[candle]).squeezedArea 
             squeezeCloseToEma = (df.iloc[candle]).squeezeCloseToEma 
             datetime = (df.iloc[candle]).datetime_est
+            date_est = (df.iloc[candle]).date_est
+            time_est = (df.iloc[candle]).time_est
             isTheDayAbove25Ema = (df.iloc[candle]).isTheDayAbove25Ema 
             areDailyEmaStacked = (df.iloc[candle]).areDailyEmaStacked
             close5minSmooth = (df.iloc[candle]).close5min_smooth
@@ -169,7 +172,9 @@ class BacktestLongOnly(BacktestBase):
             current_date, current_price = self.get_date_price(candle)
 
             initial_amount = self.amount
+            
             if self.position == POSITION['NEUTRAL'].value: 
+                
                 if len(lastTreeOver) == window and \
                     squeezeCloseToEma == EMA25['PRICE_ACCION_OVER_EMA'].value and \
                     isTheDayAbove25Ema == True:
@@ -182,13 +187,14 @@ class BacktestLongOnly(BacktestBase):
                     buying_price_formated = round(buying_price,2)
                     entry_amount_formated = round(entry_amount,2)
                     
-                    transaction = [datetime, 'long', self.symbol ,candle, self.units, buying_price_formated, entry_amount_formated, 0, 0, 0, 0, 0, 0, 0]
+                    transaction = [datetime, 'long', self.symbol ,candle, self.units, buying_price_formated, 
+                                   entry_amount_formated, 0, 0, 0, 0, 0, 0, 0]
+
+                    trans = [date_est, time_est, candle, self.symbol, self.units, buying_price_formated, 'B']
+                    log_sequence.append(trans)
                     
             elif self.position == POSITION['LONG'].value:
-
-                #stop   = (close5minSmooth<ema25_5min or squeezedArea==EMA25['PRICE_ACCION_UNDER_EMA'].value) NOO!! 2.94
-                #stop   = (squeezedArea==EMA25['PRICE_ACCION_UNDER_EMA'].value) NOO!!
-                #stop = (current_price-buying_price) <= -1 
+                
                 stop   = close5minSmooth<ema25_5min
                 target = (buying_price-current_price) >= 2
                 
@@ -217,16 +223,27 @@ class BacktestLongOnly(BacktestBase):
                     transaction[13] = balance
     
                     log.append(transaction)
+
+                    trans = [date_est, time_est, candle, self.symbol, units_before_sell, sell_price_formated, 'S']
+                    log_sequence.append(trans)
                     
         self.close_out(candle)
-        
+
+        '''
         df_log = pd.DataFrame(log, columns=['datetime','direction','symbol','buy_index', 'units', 
                                                 'buying_price', 'entry_amount','sell_index','sell_price','exit_amount',
                                                 'gain_or_loss', 'performance','move', 'balance'])
 
-        conn = sq3.connect('long_backtest_data.sql') 
+        conn = sq3.connect('long_backtest_four_principal.sql') 
         df_log.to_sql('data', conn, if_exists='append')
         conn.close()
+        '''
 
-lobt = BacktestLongOnly('IWM', '2022-09-01', '2024-09-21', 10000, verbose=False)
+        df_log_sequence = pd.DataFrame(log_sequence, columns=['Date','Time','Candle','Symbol','Quantity','Price','Side'])
+
+        conn = sq3.connect('trading_vow.sql') 
+        df_log_sequence.to_sql('data', conn, if_exists='append')
+        conn.close()
+        
+lobt = BacktestLongOnly('AMD', '2022-09-01', '2024-09-21', 10000, verbose=False)
 lobt.runStrategy()
