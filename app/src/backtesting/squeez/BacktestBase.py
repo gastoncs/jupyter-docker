@@ -196,10 +196,10 @@ class BacktestBase(object):
         self.trades += 1
         if self.verbose:
             print(f'{date} | inventory {self.units} units at {price:.2f}')
-            print('=' * 55)
+            print('=' * 94)
         print('Final balance   [$] {:.2f}'.format(self.amount))
         self.perf = ((self.amount - self.initial_amount) /
                 self.initial_amount * 100)
         print('Net Performance [%] {:.2f}'.format(self.perf))
         print('Trades Executed [#] {}'.format(self.trades))
-        print('=' * 55)
+        print('=' * 94)
