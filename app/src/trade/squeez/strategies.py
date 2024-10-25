@@ -22,13 +22,109 @@ def squeez(df, window=1):
     detectSqueezeCloseToEMA(df)
     priceActionUptrendInShortTerm(df)
 
-    df['position'] = POSITION['NEUTRAL'].value
-    cond = ((df.squeezeCloseToEma == EMA25['PRICE_ACCION_OVER_EMA'].value) & (df.isTheDayAbove25Ema == True))
+    ''' GO LONG
+    '''
+    cond = (
+                (df['position'] == POSITION['NEUTRAL'].value) || (("position" in df.columns)==False)
+           ) & 
+           (
+             (df.squeezeCloseToEma == EMA25['PRICE_ACCION_OVER_EMA'].value) & (df.isTheDayAbove25Ema == True)
+           )
+
+    df.loc[cond, 'buying_price'] = df['close']
     df.loc[cond, 'position'] = POSITION['LONG'].value
+    
+    ''' IF WE ARE LONG GET OUT IF WE HIT OUR TARGET OR STOP
+    '''
+    cond2 = (
+                df['position'] == POSITION['LONG'].value
+            ) & 
+            (
+                (df.close5minSmooth<df.ema25) || ((df['close']-df['buying_price'].tail(1)) >= 2)
+            )
+    
+    df.loc[cond2, 'position'] = POSITION['NEUTRAL'].value
 
-    cond2 = ((df.squeezeCloseToEma == EMA25['PRICE_ACCION_UNDER_EMA'].value) & (df.isTheDayAbove25Ema == False))
-    df.loc[cond2, 'position'] = POSITION['SHORT'].value
+    ''' GO SHORT
+    '''
+    cond3 = (
+                (df['position'] == POSITION['NEUTRAL'].value) || (("position" in df.columns)==False)
+            ) & 
+            (
+                (df.squeezeCloseToEma == EMA25['PRICE_ACCION_UNDER_EMA'].value) & (df.isTheDayAbove25Ema == False)
+            )
 
+    df.loc[cond3, 'selling_price'] = df['close']
+    df.loc[cond3, 'position'] = POSITION['SHORT'].value
+
+    ''' IF WE ARE SHORT GET OUT IF WE HIT OUR TARGET OR STOP
+    '''
+    cond4 = (
+                df['position'] == POSITION['SHORT'].value
+            ) & 
+            (
+                (df.close5minSmooth>df.ema25) || ((df['selling_price'].tail(1)-df['close']) >= 2)
+            )
+    
+    df.loc[cond4, 'position'] = POSITION['NEUTRAL'].value
+    
+    '''
+    if self.position == POSITION['NEUTRAL'].value:
+        
+        if len(lastTreeOver) == window and \
+            squeezeCloseToEma == EMA25['PRICE_ACCION_OVER_EMA'].value and \
+            isTheDayAbove25Ema == True:
+
+            self.go_long(candle, amount='all')
+            self.position = POSITION['LONG'].value
+
+            #LOG DATA
+            #buying_date, buying_price =  self.get_date_price(candle)  
+            #trans = [date_est, time_est, candle, self.symbol, self.units, round(buying_price,2), 'B']
+            #log_sequence.append(trans)
+
+        elif len(lastTreeUnder) == window and \
+            squeezeCloseToEma == EMA25['PRICE_ACCION_UNDER_EMA'].value and \
+            isTheDayAbove25Ema == False:
+
+            self.go_short(candle, amount='all')
+            self.position = POSITION['SHORT'].value
+
+            #LOG DATA
+            #selling_date, selling_price =  self.get_date_price(candle)
+            #trans = [date_est, time_est, candle, self.symbol, -self.units, round(selling_price,2), 'S']
+            #log_sequence.append(trans)
+
+    elif self.position == POSITION['LONG'].value:
+        
+        stop   = close5minSmooth<ema25
+        target = (current_price-buying_price) >= 2
+        
+        if stop or target:
+            units_before_transaction = self.units
+            self.place_sell_order(candle, units=self.units)
+            self.position = POSITION['NEUTRAL'].value
+
+            #LOG DATA
+            #trans = [date_est, time_est, candle, self.symbol, units_before_transaction, round(current_price,2), 'S']
+            #log_sequence.append(trans)
+    
+    elif self.position == POSITION['SHORT'].value:
+        
+        stop   = close5minSmooth>ema25
+        target = (selling_price-current_price) >= 2
+        
+        if stop or target:
+            units_before_transaction = -self.units
+            self.place_buy_order(candle, units=-self.units)
+            self.position = POSITION['NEUTRAL'].value
+
+            #LOG DATA
+            #trans = [date_est, time_est, candle, self.symbol, units_before_transaction, round(current_price,2), 'B']
+            #log_sequence.append(trans)
+
+    '''
+    
     return df
 
 def calculateBolingerAndKeltnerChannels(df, kc):

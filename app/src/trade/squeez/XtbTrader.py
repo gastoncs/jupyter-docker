@@ -734,9 +734,3 @@ class APIResponseException(Exception):
                 print('SMTP Error Occured, email not sent')
                 print(e)
                 pass
-
-class POSITION(enum.Enum):
-    NEUTRAL = 0
-    LONG = 1
-    SHORT = 2
-
