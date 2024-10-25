@@ -170,7 +170,7 @@ class XtbTrader():
         '''        
         record = pd.DataFrame.from_records(msg['data'], index=[pd.to_datetime(datetime.datetime.fromtimestamp(msg['data']['ctm'] / 1000))])
         record = record[['open', 'high', 'low', 'close', 'vol']]
-        self.last_candle = record.resample('5min', label='right').last().index[-1]
+        self.last_candle = record.resample('1min', label='right').last().index[-1]
         
         if (self.last_candle - self.last_bar > pd.to_timedelta(self.interval)) & (self.collect_live == False):
             
@@ -184,11 +184,11 @@ class XtbTrader():
 
         if self.collect_live == True:
 
-            if self.interval != '5min':
+            if self.interval != '1min':
 
                 self.live_df = pd.concat([self.live_df, record])
 
-                idx_to_check=self.live_df.index[-1]+pd.to_timedelta('5min')
+                idx_to_check=self.live_df.index[-1]+pd.to_timedelta('1min')
                 if idx_to_check.minute%self.interval_dict[self.interval]==0:
 
                 #if self.last_candle - self.live_df.index[0] == pd.to_timedelta(self.interval):
@@ -299,6 +299,7 @@ class XtbTrader():
         df = self.raw_data.copy()
 
         if df['position'].iloc[-2] == 1:
+            
             if df['position'].iloc[-1] == -1:
                 self.close_order()
                 self.getTradeHistory(self.order_hist)
@@ -313,6 +314,7 @@ class XtbTrader():
                 self.save_history()
 
         if df['position'].iloc[-2] == -1:
+            
             if df['position'].iloc[-1] == 1:
                 
                 self.close_order()
@@ -328,7 +330,9 @@ class XtbTrader():
                 self.getTradeHistory(self.order_hist)
                 self.save_history()
 
+
         if df['position'].iloc[-2] == 0:
+            
             if df['position'].iloc[-1] == 1:
 
                 self.open_position('buy')

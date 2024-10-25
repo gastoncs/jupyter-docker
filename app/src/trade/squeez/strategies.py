@@ -3,12 +3,19 @@ import numpy as np
 import pandas_ta as ta
 import enum
 from pandas_ta.volatility import kc 
+from scipy.signal import savgol_filter
 
 def squeez(df, window=1):
 
     df = df.copy()
-
+    
     df['ema25'] = df['close'].ewm(span=25, adjust=False).mean()
+    df["close_smooth"] = savgol_filter(df.close, 49, 5)
+    df["high_smooth"] = savgol_filter(df.high, 49, 5)
+    df["low_smooth"] = savgol_filter(df.low, 49, 5)
+    df['YMD'] = df.index.strftime('%Y%m%d')
+    df["est"] = pd.to_datetime(df.index, unit='ms').tz_localize('UTC').tz_convert('US/Eastern')
+    df.set_index("YMD")
 
     calculateBolingerAndKeltnerChannels(df, kc)
     detectSqueeze(df)
@@ -18,11 +25,11 @@ def squeez(df, window=1):
     df['position'] = POSITION['NEUTRAL'].value
     cond = ((df.squeezeCloseToEma == EMA25['PRICE_ACCION_OVER_EMA'].value) & (df.isTheDayAbove25Ema == True))
     df.loc[cond, 'position'] = POSITION['LONG'].value
-    
+
     cond2 = ((df.squeezeCloseToEma == EMA25['PRICE_ACCION_UNDER_EMA'].value) & (df.isTheDayAbove25Ema == False))
     df.loc[cond2, 'position'] = POSITION['SHORT'].value
-    
-    return df[['position']]
+
+    return df
 
 def calculateBolingerAndKeltnerChannels(df, kc):
 
