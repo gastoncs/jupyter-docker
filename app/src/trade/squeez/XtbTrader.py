@@ -328,7 +328,6 @@ class XtbTrader():
                 self.getTradeHistory(self.order_hist)
                 self.save_history()
 
-
         if df['position'].iloc[-2] == 0:
             if df['position'].iloc[-1] == 1:
 

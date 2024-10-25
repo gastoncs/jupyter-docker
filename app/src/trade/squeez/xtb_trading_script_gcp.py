@@ -15,7 +15,7 @@ try:
     #instantiate trading session
     warning_candle_counter=0
     xt = XtbTrader(instrument='GOOGL.US', interval='5min', lookback=1000, strategy=squeez,
-                   units=0.1, session_end='2024-10-24 22:00:00', csv_results_path='/home/jovyan/src/trade', email_info=True, close_order_after_session=True)
+                   units=0.1, session_end='2024-10-24 22:00:00', csv_results_path='/home/jovyan/src/trade', email_info=False, close_order_after_session=True)
 
     client = APIClient()
     resp = client.execute(loginCommand(user_id, pwd))

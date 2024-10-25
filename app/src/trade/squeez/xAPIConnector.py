@@ -255,8 +255,6 @@ class APIStreamClient(JsonSocket):
          for symbolX in symbols:
             self.subscribeCandle(symbolX)
         
-
-
     def unsubscribePrice(self, symbol):
         self.execute(dict(command='stopTickPrices', symbol=symbol, streamSessionId=self._ssId))
         
@@ -283,8 +281,7 @@ class APIStreamClient(JsonSocket):
     def unsubscribeCandles(self, symbols):
         for symbolX in symbols:
             self.unsubscribeCandle(symbolX)
-        
-        
+         
     def unsubscribeAlive(self):
         self.execute(dict(command='stopKeepAlive', streamSessionId=self._ssId))
 
@@ -296,8 +293,6 @@ def baseCommand(commandName, arguments=None):
 
 def loginCommand(userId, password, appName=''):
     return baseCommand('login', dict(userId=userId, password=password, appName=appName))
-
-
 
 # example function for processing ticks from Streaming socket
 def procTickExample(msg): 

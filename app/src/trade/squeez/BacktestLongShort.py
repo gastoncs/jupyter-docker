@@ -22,43 +22,22 @@ class EMA25(enum.Enum):
     PRICE_ACCION_UNDER_EMA = 2
 
 class BacktestLongShort(BacktestBase):
+    
     def __init__(self, symbol, start, end, amount, ftc=0.0, ptc=0.0, verbose=True):
         
         super().__init__(symbol, start, end, amount, ftc, ptc, verbose)
 
         df=self.data
 
-        df['ema25_5min'] = BacktestLongShort.calculateEma(df,25)
+        df['ema25'] = BacktestLongShort.calculateEma(df,25)
         
         self.calculateBolingerAndKeltnerChannels(kc)
         self.detectSqueeze()
         self.detectSqueezeCloseToEMA()
         self.priceActionUptrendInShortTerm()
-        
-    def go_long(self, bar, units=None, amount=None):
-        
-        if self.position == POSITION['SHORT'].value:
-            self.place_buy_order(bar, units=-self.units)
-        if units:
-            self.place_buy_order(bar, units=units)
-        elif amount:
-            if amount == 'all':
-                amount = self.amount
-            self.place_buy_order(bar, amount=amount)
-
-    def go_short(self, bar, units=None, amount=None):
-        
-        if self.position == POSITION['LONG'].value:
-            self.place_sell_order(bar, units=self.units)
-        if units:
-            self.place_sell_order(bar, units=units)
-        elif amount:
-            if amount == 'all':
-                amount = self.amount
-            self.place_sell_order(bar, amount=amount)
 
     def calculateEma(df, span):
-        return df['close_5min'].ewm(span=span, adjust=False).mean()
+        return df['close'].ewm(span=span, adjust=False).mean()
         
     def calculateBolingerAndKeltnerChannels(self, kc)->None:
         
@@ -67,7 +46,7 @@ class BacktestLongShort(BacktestBase):
         df.ta.bbands(append=True, length=20, std=2)
         
         # Initialize Keltner Channel Indictor
-        kc=kc(high=df['high_5min'], low=df['low_5min'], close=df["close_5min"], window=20)
+        kc=kc(high=df['high'], low=df['low'], close=df["close"], window=20)
         
         #Bolinger Band Upper - Keltner Channel Upper
         df['bbu_minus_kcu'] = df['BBU_20_2.0'] - kc['KCUe_20_2']
@@ -78,9 +57,9 @@ class BacktestLongShort(BacktestBase):
         
         ''' Check if the pa is above the ema if it does then is true else check if there is a wigle room of .30 cents
         '''
-        df['isPriceActionAboveEma25'] = np.where(df.ema25_5min > df.close5min_smooth, 
-                                                     np.where((df.ema25_5min-df.close5min_smooth)<=zoneWidth, True, False), 
-                                                 np.where(df.ema25_5min < df.close5min_smooth, True, False))
+        df['isPriceActionAboveEma25'] = np.where(df.ema25 > df.close5min_smooth, 
+                                                     np.where((df.ema25-df.close5min_smooth)<=zoneWidth, True, False), 
+                                                 np.where(df.ema25 < df.close5min_smooth, True, False))
         
         ''' If in the count of the isPriceActionAboveEma25 (in the day YMD) there are False then return False
         '''
@@ -98,7 +77,7 @@ class BacktestLongShort(BacktestBase):
         cond =(
                 (df.squeezedArea == EMA25['PRICE_ACCION_OVER_EMA'].value) &
                 (
-                    abs(df.low5min_smooth-df.ema25_5min<=zoneWidth)
+                    abs(df.low5min_smooth-df.ema25<=zoneWidth)
                 )
             )
         
@@ -111,7 +90,7 @@ class BacktestLongShort(BacktestBase):
                 df.squeezedArea == EMA25['PRICE_ACCION_UNDER_EMA'].value
             ) & 
             (
-                abs(df.high5min_smooth-df.ema25_5min<=zoneWidth)
+                abs(df.high5min_smooth-df.ema25<=zoneWidth)
             )
         )
         
@@ -120,10 +99,10 @@ class BacktestLongShort(BacktestBase):
     def detectSqueeze(self)->None:
         df=self.data
         df['squeezedArea'] = EMA25['PRICE_ACCION_NEUTRAL_EMA'].value
-        cond = ((df.bbu_minus_kcu <= 0) & (df.close_5min < df.ema25_5min))
+        cond = ((df.bbu_minus_kcu <= 0) & (df.close < df.ema25))
         df.loc[cond, 'squeezedArea'] = EMA25['PRICE_ACCION_UNDER_EMA'].value
         
-        cond2 =((df.bbu_minus_kcu <= 0) & (df.close_5min > df.ema25_5min))
+        cond2 =((df.bbu_minus_kcu <= 0) & (df.close > df.ema25))
         df.loc[cond2, 'squeezedArea'] = EMA25['PRICE_ACCION_OVER_EMA'].value
         
     def runStrategy(self):
@@ -131,7 +110,7 @@ class BacktestLongShort(BacktestBase):
         ''' Backtesting Squeeze Strategy.
         '''
         df=self.data
-        stop = 'close5minSmooth<ema25_5min (long) or close5minSmooth>ema25_5min (short)'
+        stop = 'close5minSmooth<ema25 (long) or close5minSmooth>ema25 (short)'
         target = '(current_price-buying_price) >= 2 (long) or (selling_price-current_price) >= 2 (short)'
         
         msg = f'\n\nRunning squeeze strategy long and short'
@@ -150,7 +129,7 @@ class BacktestLongShort(BacktestBase):
         
         for candle in range(0, len(df)):
 
-            ema25_5min = (df.iloc[candle]).ema25_5min
+            ema25 = (df.iloc[candle]).ema25
             squeezedArea = (df.iloc[candle]).squeezedArea 
             squeezeCloseToEma = (df.iloc[candle]).squeezeCloseToEma 
             datetime = (df.iloc[candle]).datetime_est
@@ -194,7 +173,7 @@ class BacktestLongShort(BacktestBase):
  
             elif self.position == POSITION['LONG'].value:
                 
-                stop   = close5minSmooth<ema25_5min
+                stop   = close5minSmooth<ema25
                 target = (current_price-buying_price) >= 2
                 
                 if stop or target:
@@ -208,7 +187,7 @@ class BacktestLongShort(BacktestBase):
             
             elif self.position == POSITION['SHORT'].value:
                 
-                stop   = close5minSmooth>ema25_5min
+                stop   = close5minSmooth>ema25
                 target = (selling_price-current_price) >= 2
                 
                 if stop or target:

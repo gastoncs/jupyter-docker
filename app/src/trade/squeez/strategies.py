@@ -6,65 +6,91 @@ from pandas_ta.volatility import kc
 
 def squeez(df, window=1):
 
-        # Bolinger Bands
-        df.ta.bbands(append=True, length=20, std=2)
-        
-        # Initialize Keltner Channel Indictor
-        kc=kc(high=df['high_5min'], low=df['low_5min'], close=df["close_5min"], window=20)
-        
-        #Bolinger Band Upper - Keltner Channel Upper
-        df['bbu_minus_kcu'] = df['BBU_20_2.0'] - kc['KCUe_20_2']
+    df = df.copy()
 
-        '''
-        Determine if the price accion has been above the ema 25
-        '''
-        df['isPriceActionAboveEma25'] = np.where(df.ema25_5min > df.close5min_smooth, 
-                                                    np.where((df.ema25_5min-df.close5min_smooth)<=zoneWidth, True, False), 
-                                                 np.where(df.ema25_5min < df.close5min_smooth, True, False))
-    
-        df['isTheDayAbove25Ema'] = df.groupby('YMD').isPriceActionAboveEma25.transform(
-            lambda x: False if x[x==False].value_counts().shape[0] > 0 else True)
+    df['ema25'] = df['close'].ewm(span=25, adjust=False).mean()
 
+    calculateBolingerAndKeltnerChannels(df, kc)
+    detectSqueeze(df)
+    detectSqueezeCloseToEMA(df)
+    priceActionUptrendInShortTerm(df)
+
+    df['position'] = POSITION['NEUTRAL'].value
+    cond = ((df.squeezeCloseToEma == EMA25['PRICE_ACCION_OVER_EMA'].value) & (df.isTheDayAbove25Ema == True))
+    df.loc[cond, 'position'] = POSITION['LONG'].value
     
-        '''
-        Detect if the squeeze is close to the ema 
-        '''
+    cond2 = ((df.squeezeCloseToEma == EMA25['PRICE_ACCION_UNDER_EMA'].value) & (df.isTheDayAbove25Ema == False))
+    df.loc[cond2, 'position'] = POSITION['SHORT'].value
     
-        df['squeezeCloseToEma'] = EMA25['PRICE_ACCION_NEUTRAL_EMA'].value
+    return df[['position']]
+
+def calculateBolingerAndKeltnerChannels(df, kc):
+
+    # Bolinger Bands
+    df.ta.bbands(append=True, length=20, std=2)
     
-        #Over the EMA
-        cond =(
-                (df.squeezedArea == EMA25['PRICE_ACCION_OVER_EMA'].value) &
-                (
-                    abs(df.low5min_smooth-df.ema25_5min<=zoneWidth)
-                )
-            )
-        
-        df.loc[cond, 'squeezeCloseToEma'] = EMA25['PRICE_ACCION_OVER_EMA'].value
+    # Initialize Keltner Channel Indictor
+    kc=kc(high=df['high'], low=df['low'], close=df["close"], window=20)
     
-        #Under the EMA
-        cond =(
+    #Bolinger Band Upper - Keltner Channel Upper
+    df['bbu_minus_kcu'] = df['BBU_20_2.0'] - kc['KCUe_20_2']
+    
+def priceActionUptrendInShortTerm(df, zoneWidth = .30):
+
+    ''' Check if the pa is above the ema if it does then is true else check if there is a wigle room of .30 cents
+    '''
+    df['isPriceActionAboveEma25'] = np.where(df.ema25 > df.close_smooth, 
+                                                 np.where((df.ema25-df.close_smooth)<=zoneWidth, True, False), 
+                                             np.where(df.ema25 < df.close_smooth, True, False))
+    
+    ''' If in the count of the isPriceActionAboveEma25 (in the day YMD) there are False then return False
+    '''
+    df['isTheDayAbove25Ema'] = df.groupby('YMD').isPriceActionAboveEma25.transform(
+        lambda x: False if x[x==False].value_counts().shape[0] > 0 else True)
+
+def detectSqueezeCloseToEMA(df, zoneWidth = .30)->None:
+    
+    df['squeezeCloseToEma'] = EMA25['PRICE_ACCION_NEUTRAL_EMA'].value
+
+    ''' Over the EMA
+    '''
+    cond =(
+            (df.squeezedArea == EMA25['PRICE_ACCION_OVER_EMA'].value) &
             (
-                df.squeezedArea == EMA25['PRICE_ACCION_UNDER_EMA'].value
-            ) & 
-            (
-                abs(df.high5min_smooth-df.ema25_5min<=zoneWidth)
+                abs(df.low_smooth-df.ema25<=zoneWidth)
             )
         )
-        
-        df.loc[cond, 'squeezeCloseToEma'] = EMA25['PRICE_ACCION_UNDER_EMA'].value
-
-        '''
-        Detect if there is a squeeze
-        '''
     
-        df['squeezedArea'] = EMA25['PRICE_ACCION_NEUTRAL_EMA'].value
-        cond = ((df.bbu_minus_kcu <= 0) & (df.close_5min < df.ema25_5min))
-        df.loc[cond, 'squeezedArea'] = EMA25['PRICE_ACCION_UNDER_EMA'].value
-        
-        cond2 =((df.bbu_minus_kcu <= 0) & (df.close_5min > df.ema25_5min))
-        df.loc[cond2, 'squeezedArea'] = EMA25['PRICE_ACCION_OVER_EMA'].value
+    df.loc[cond, 'squeezeCloseToEma'] = EMA25['PRICE_ACCION_OVER_EMA'].value
+
+    ''' Under the EMA
+    '''
+    cond =(
+        (
+            df.squeezedArea == EMA25['PRICE_ACCION_UNDER_EMA'].value
+        ) & 
+        (
+            abs(df.high_smooth-df.ema25<=zoneWidth)
+        )
+    )
     
-    return df
+    df.loc[cond, 'squeezeCloseToEma'] = EMA25['PRICE_ACCION_UNDER_EMA'].value
 
+def detectSqueeze(df):
 
+    df['squeezedArea'] = EMA25['PRICE_ACCION_NEUTRAL_EMA'].value
+    cond = ((df.bbu_minus_kcu <= 0) & (df.close < df.ema25))
+    df.loc[cond, 'squeezedArea'] = EMA25['PRICE_ACCION_UNDER_EMA'].value
+    
+    cond2 =((df.bbu_minus_kcu <= 0) & (df.close > df.ema25))
+    df.loc[cond2, 'squeezedArea'] = EMA25['PRICE_ACCION_OVER_EMA'].value
+    
+class POSITION(enum.Enum):
+    NEUTRAL = 0
+    LONG = 1
+    SHORT = -1
+    
+class EMA25(enum.Enum):
+    PRICE_ACCION_NEUTRAL_EMA = 0
+    PRICE_ACCION_OVER_EMA = 1
+    PRICE_ACCION_UNDER_EMA = 2
