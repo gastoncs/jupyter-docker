@@ -54,8 +54,7 @@ class BacktestBase(object):
         closes out a long or short position
     '''
 
-    def __init__(self, symbol, start, end, amount,
-                 ftc=0.0, ptc=0.0, verbose=True):
+    def __init__(self, symbol, start, end, amount, ftc=0.0, ptc=0.0, verbose=True):
         self.symbol = symbol
         self.start = start
         self.end = end
@@ -74,24 +73,52 @@ class BacktestBase(object):
         ''' Retrieves and prepares the data.
         '''
         df = pd.read_csv(f"../data/{self.symbol}/{self.symbol}.USUSD_Candlestick_5_M_ASK_05.10.2022-05.10.2024.csv")
-        df2 = pd.read_csv(f"../data/{self.symbol}/{self.symbol}.USUSD_Candlestick_1_D_ASK_05.10.2022-05.10.2024.csv")
+        #df2 = pd.read_csv(f"../data/{self.symbol}/{self.symbol}.USUSD_Candlestick_1_D_ASK_05.10.2022-05.10.2024.csv")
 
-        df2.reset_index(drop=True, inplace=True)
+        #df2.reset_index(drop=True, inplace=True)
         
         df['Gmt time']=df["Gmt time"].str.replace(".000","")
         df['Gmt time']=pd.to_datetime(df['Gmt time'],format='%d.%m.%Y %H:%M:%S')        
-        df2['Gmt time']=df2["Gmt time"].str.replace(".000","")
-        df2['Gmt time']=pd.to_datetime(df2['Gmt time'],format='%d.%m.%Y %H:%M:%S')
+        #df2['Gmt time']=df2["Gmt time"].str.replace(".000","")
+        #df2['Gmt time']=pd.to_datetime(df2['Gmt time'],format='%d.%m.%Y %H:%M:%S')
         
         df['YMD'] = df['Gmt time'].dt.strftime('%Y%m%d')
-        df2['YMD'] = df2['Gmt time'].dt.strftime('%Y%m%d')
+        #df2['YMD'] = df2['Gmt time'].dt.strftime('%Y%m%d')
     
         df.set_index("YMD")
-        df2.set_index("YMD")
+        #df2.set_index("YMD")
+
+        df.rename(columns={"Open": "open_5min"}, inplace=True)
+        df.rename(columns={"High": "high_5min"}, inplace=True)
+        df.rename(columns={"Low": "low_5min"}, inplace=True)
+        df.rename(columns={"Volume": "volume_5min"}, inplace=True)
+        df.rename(columns={"Close": "close_5min"}, inplace=True)
+        df.rename(columns={'Gmt time':'datetime_gmt'}, inplace = True)
         
+        df['datetime_est']=pd.to_datetime(df["datetime_gmt"], unit='ms').dt.tz_localize('UTC').dt.tz_convert('US/Eastern')
+        df['date_est']=df['datetime_est'].dt.date
+        df['time_est']=df['datetime_est'].dt.time
+        
+        df["close5min_smooth"] = savgol_filter(df.close_5min, 49, 5)
+        df["high5min_smooth"] = savgol_filter(df.high_5min, 49, 5)
+        df["low5min_smooth"] = savgol_filter(df.low_5min, 49, 5)
+    
+        df['price'] = df['close_5min']
+
+        fromTodayStart = '2022-10-05 09:30:00'
+        toNow   = '2024-10-05 16:00:00'
+        df = df[df['datetime_est'].between(fromTodayStart, toNow)]
+        
+        df = df[df.notnull().all(axis=1)]
+        df=df[(df.volume_5min != 0)]
+        df=df[df.high_5min!=df.low_5min]
+    
+        df.reset_index(drop=True, inplace=True)
+
         self.data = df.dropna()
-        self.data2 = df2.dropna()
-        
+        #self.data2 = df2.dropna()
+
+    '''
     def merged_data(self, df, df2):
     
         df = pd.merge(df, df2, how="right", on=["YMD"])
@@ -125,6 +152,7 @@ class BacktestBase(object):
         df.reset_index(drop=True, inplace=True)
 
         self.data = df
+    '''
     
     def plot_data(self, cols=None):
         ''' Plots the closing prices for symbol.

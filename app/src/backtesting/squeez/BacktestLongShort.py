@@ -27,12 +27,11 @@ class BacktestLongShort(BacktestBase):
         super().__init__(symbol, start, end, amount, ftc, ptc, verbose)
 
         df=self.data
-        df2=self.data2
+        #df2=self.data2
 
         df['ema25_5min'] = BacktestLongShort.calculateEma(df,25)
-        self.dailyEmaStacked()
 
-        self.merged_data(df,df2)
+        #self.merged_data(df,df2)
         
         self.calculateBolingerAndKeltnerChannels(kc)
         self.detectSqueeze()
@@ -62,7 +61,7 @@ class BacktestLongShort(BacktestBase):
             self.place_sell_order(bar, amount=amount)
 
     def calculateEma(df, span):
-        return df['Close'].ewm(span=span, adjust=False).mean()
+        return df['close_5min'].ewm(span=span, adjust=False).mean()
         
     def calculateBolingerAndKeltnerChannels(self, kc)->None:
         
@@ -130,30 +129,6 @@ class BacktestLongShort(BacktestBase):
         cond2 =((df.bbu_minus_kcu <= 0) & (df.close_5min > df.ema25_5min))
         df.loc[cond2, 'squeezedArea'] = EMA25['PRICE_ACCION_OVER_EMA'].value
         
-    def dailyEmaStacked(self)->None:
-        
-        df2=self.data2
-        df2['ema89'] = BacktestLongShort.calculateEma(df2,89)
-        df2['ema55'] = BacktestLongShort.calculateEma(df2,55)
-        df2['ema34'] = BacktestLongShort.calculateEma(df2,34)
-        df2['ema21'] = BacktestLongShort.calculateEma(df2,21)
-        df2['ema8'] = BacktestLongShort.calculateEma(df2,8)
-    
-        SP = ((df2.ema8 > df2.ema21) & \
-              (df2.ema21 > df2.ema34) & \
-              (df2.ema34 > df2.ema55) & \
-              (df2.ema55 > df2.ema89))
-        
-        df2.loc[SP, 'areDailyEmaStacked'] = STACKED_EMA['POSITIVE'].value
-        
-        SN = ((df2.ema8 < df2.ema21) & \
-              (df2.ema21 < df2.ema34) & \
-              (df2.ema34 < df2.ema55) & \
-              (df2.ema55 < df2.ema89))
-        
-        df2.loc[SN, 'areDailyEmaStacked'] = STACKED_EMA['NEGATIVE'].value    
-        df2.loc[((SP==False) & (SN==False)), 'areDailyEmaStacked'] = STACKED_EMA['NEUTRAL'].value
-        
     def runStrategy(self):
         
         ''' Backtesting Squeeze Strategy.
@@ -166,8 +141,8 @@ class BacktestLongShort(BacktestBase):
         msg += f'\nSymbol:  {self.symbol} '
         msg += f'\nStop:   {stop} '
         msg += f'\nTarget: {target} '
-        msg += f'\nfixed costs {self.ftc} '
-        msg += f'proportional costs {self.ptc}'
+        msg += f'\nFixed costs: {self.ftc} '
+        msg += f'Proportional costs: {self.ptc}'
         print(msg)
         print('=' * 94)
         self.position = POSITION['NEUTRAL'].value
@@ -185,12 +160,11 @@ class BacktestLongShort(BacktestBase):
             date_est = (df.iloc[candle]).date_est
             time_est = (df.iloc[candle]).time_est
             isTheDayAbove25Ema = (df.iloc[candle]).isTheDayAbove25Ema 
-            areDailyEmaStacked = (df.iloc[candle]).areDailyEmaStacked
             close5minSmooth = (df.iloc[candle]).close5min_smooth
-
-            df2 = df.iloc[candle-window:candle]
-            lastTreeOver = df2[df2['squeezeCloseToEma'] == EMA25['PRICE_ACCION_OVER_EMA'].value].tail(3).values
-            lastTreeUnder = df2[df2['squeezeCloseToEma'] == EMA25['PRICE_ACCION_UNDER_EMA'].value].tail(3).values
+            
+            df_window = df.iloc[candle-window:candle]
+            lastTreeOver = df_window[df_window['squeezeCloseToEma'] == EMA25['PRICE_ACCION_OVER_EMA'].value].tail(3).values
+            lastTreeUnder = df_window[df_window['squeezeCloseToEma'] == EMA25['PRICE_ACCION_UNDER_EMA'].value].tail(3).values
             
             current_date, current_price = self.get_date_price(candle)
             initial_amount = self.amount
@@ -232,7 +206,7 @@ class BacktestLongShort(BacktestBase):
                     self.position = POSITION['NEUTRAL'].value
 
                     #LOG DATA
-                    trans = [date_est, time_est, candle, self.symbol, units_before_transaction, round(current_price,2), 'SELL_LONG']
+                    trans = [date_est, time_est, candle, self.symbol, units_before_transaction, round(current_price,2), 'S']
                     log_sequence.append(trans)
             
             elif self.position == POSITION['SHORT'].value:
@@ -246,13 +220,17 @@ class BacktestLongShort(BacktestBase):
                     self.position = POSITION['NEUTRAL'].value
 
                     #LOG DATA
-                    trans = [date_est, time_est, candle, self.symbol, units_before_transaction, round(current_price,2), 'BUY_SHORT']
+                    trans = [date_est, time_est, candle, self.symbol, units_before_transaction, round(current_price,2), 'B']
                     log_sequence.append(trans)
                     
         self.close_out(candle)
 
         df_log_sequence = pd.DataFrame(log_sequence, columns=['Date','Time','Candle','Symbol','Quantity','Price','Side'])
-        df_log_sequence.to_csv('trading_result.csv', index=False)
+        #df_log_sequence.to_csv('trading_result.csv', index=False)
+        conn = sq3.connect('trading_vow.sql') 
+        df_log_sequence.to_sql('data', conn, if_exists='append')
         
-lobt = BacktestLongShort('GOOGL', '2022-09-01', '2024-09-21', 10000, verbose=False)
+        conn.close()
+
+lobt = BacktestLongShort('AAPL', '2022-09-01', '2024-09-21', 10000, verbose=False, ftc=1)
 lobt.runStrategy()
