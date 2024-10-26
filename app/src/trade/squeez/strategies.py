@@ -9,9 +9,24 @@ def squeez(df, window=1):
 
     df = df.copy()
 
+    df = init(df)
+    calculateBolingerAndKeltnerChannels(df, kc)
+    detectSqueeze(df)
+    detectSqueezeCloseToEMA(df)
+    isTheLastTreeSqueezeCloseToEmaOverOrUnderEma(df)
+    priceActionUptrendInShortTerm(df)
+    detectPosition(df)
+
+    df = df[['index', 'est', 'high','low','close','volume','open','position','buying_price',
+             'selling_price','lastTreeOver','lastTreeUnder']] 
+    
+    return df
+    
+def init(df):
+    
     ''' Create columns if does not exist
     '''
-    cols_to_check = ['high','low','close','volume','open','position']
+    cols_to_check = ['index','high','low','close','volume','open','position']
     new_list =list(set(df.columns).union(cols_to_check))
     df = df.reindex(columns=sorted(new_list)).fillna(0)
     
@@ -20,19 +35,22 @@ def squeez(df, window=1):
     df["high_smooth"] = savgol_filter(df.high, 49, 5)
     df["low_smooth"] = savgol_filter(df.low, 49, 5)
     df['YMD'] = df.index.strftime('%Y%m%d')
-    df["est"] = pd.to_datetime(df.index, unit='ms').tz_localize('UTC').tz_convert('US/Eastern')
+    df["est"] = pd.to_datetime(df.index, unit='ms').tz_localize('UTC').tz_convert('US/Eastern').strftime('%Y-%m-%d %H:%M:%S')
+    
     df.set_index("YMD")
 
-    calculateBolingerAndKeltnerChannels(df, kc)
-    detectSqueeze(df)
-    detectSqueezeCloseToEMA(df)
-    priceActionUptrendInShortTerm(df)
-
+    return df
+    
+def detectPosition(df):
+    
+    ''' START POSITION
+    '''
+    
     ''' GO LONG
     '''
     cond = (
                 (
-                   df['position'] == POSITION['NEUTRAL'].value 
+                   (df['position'] == POSITION['NEUTRAL'].value) & (df['lastTreeOver']==3)
                 ) & 
                 (
                     (df.squeezeCloseToEma == EMA25['PRICE_ACCION_OVER_EMA'].value) & (df.isTheDayAbove25Ema == True)
@@ -42,9 +60,27 @@ def squeez(df, window=1):
     df.loc[cond, 'buying_price'] = df['close']
     df.loc[cond, 'position'] = POSITION['LONG'].value
     
-    ''' GET OUT IF WE HIT OUR TARGET OR STOP IN THE LONG POSITION
+    ''' GO SHORT
     '''
     cond2 = (
+                (
+                    (df['position'] == POSITION['NEUTRAL'].value) & (df['lastTreeUnder']==3)
+                ) & 
+                (
+                    (df.squeezeCloseToEma == EMA25['PRICE_ACCION_UNDER_EMA'].value) & (df.isTheDayAbove25Ema == False)
+                )
+            )
+
+    df.loc[cond2, 'selling_price'] = df['close']
+    df.loc[cond2, 'position'] = POSITION['SHORT'].value
+
+    
+    ''' TARGET AND STOPS
+    '''
+    
+    ''' GET OUT IF WE HIT OUR TARGET OR STOP IN THE LONG POSITION
+    '''
+    cond3 = (
                 (
                     df['position'] == POSITION['LONG'].value
                 ) & 
@@ -53,22 +89,8 @@ def squeez(df, window=1):
                 )
             )
     
-    df.loc[cond2, 'position'] = POSITION['NEUTRAL'].value
-
-    ''' GO SHORT
-    '''
-    cond3 = (
-                (
-                    (df['position'] == POSITION['NEUTRAL'].value)
-                ) & 
-                (
-                    (df.squeezeCloseToEma == EMA25['PRICE_ACCION_UNDER_EMA'].value) & (df.isTheDayAbove25Ema == False)
-                )
-            )
-
-    df.loc[cond3, 'selling_price'] = df['close']
-    df.loc[cond3, 'position'] = POSITION['SHORT'].value
-
+    df.loc[cond3, 'position'] = POSITION['NEUTRAL'].value
+    
     ''' GET OUT IF WE HIT OUR TARGET OR STOP IN THE SHORT POSITION
     '''
     cond4 = (
@@ -82,65 +104,7 @@ def squeez(df, window=1):
     
     df.loc[cond4, 'position'] = POSITION['NEUTRAL'].value
     
-    '''
-    if self.position == POSITION['NEUTRAL'].value:
-        
-        if len(lastTreeOver) == window and \
-            squeezeCloseToEma == EMA25['PRICE_ACCION_OVER_EMA'].value and \
-            isTheDayAbove25Ema == True:
-
-            self.go_long(candle, amount='all')
-            self.position = POSITION['LONG'].value
-
-            #LOG DATA
-            #buying_date, buying_price =  self.get_date_price(candle)  
-            #trans = [date_est, time_est, candle, self.symbol, self.units, round(buying_price,2), 'B']
-            #log_sequence.append(trans)
-
-        elif len(lastTreeUnder) == window and \
-            squeezeCloseToEma == EMA25['PRICE_ACCION_UNDER_EMA'].value and \
-            isTheDayAbove25Ema == False:
-
-            self.go_short(candle, amount='all')
-            self.position = POSITION['SHORT'].value
-
-            #LOG DATA
-            #selling_date, selling_price =  self.get_date_price(candle)
-            #trans = [date_est, time_est, candle, self.symbol, -self.units, round(selling_price,2), 'S']
-            #log_sequence.append(trans)
-
-    elif self.position == POSITION['LONG'].value:
-        
-        stop   = close5minSmooth<ema25
-        target = (current_price-buying_price) >= 2
-        
-        if stop or target:
-            units_before_transaction = self.units
-            self.place_sell_order(candle, units=self.units)
-            self.position = POSITION['NEUTRAL'].value
-
-            #LOG DATA
-            #trans = [date_est, time_est, candle, self.symbol, units_before_transaction, round(current_price,2), 'S']
-            #log_sequence.append(trans)
-    
-    elif self.position == POSITION['SHORT'].value:
-        
-        stop   = close5minSmooth>ema25
-        target = (selling_price-current_price) >= 2
-        
-        if stop or target:
-            units_before_transaction = -self.units
-            self.place_buy_order(candle, units=-self.units)
-            self.position = POSITION['NEUTRAL'].value
-
-            #LOG DATA
-            #trans = [date_est, time_est, candle, self.symbol, units_before_transaction, round(current_price,2), 'B']
-            #log_sequence.append(trans)
-    '''
-    
-    df = df[['high','low','close','volume','open','position']] 
-
-    return df
+    df = df[['index', 'est', 'high','low','close','volume','open','position','buying_price','selling_price','lastTreeOver','lastTreeUnder']]   
 
 def calculateBolingerAndKeltnerChannels(df, kc):
 
@@ -155,7 +119,7 @@ def calculateBolingerAndKeltnerChannels(df, kc):
     
 def priceActionUptrendInShortTerm(df, zoneWidth = .30):
 
-    ''' Check if the pa is above the ema if it does then is true else check if there is a wigle room of .30 cents
+    ''' Check if the price action is above the ema if it does then is true else check if there is a wigle room of .30 cents
     '''
     df['isPriceActionAboveEma25'] = np.where(df.ema25 > df.close_smooth, 
                                                  np.where((df.ema25-df.close_smooth)<=zoneWidth, True, False), 
@@ -204,7 +168,13 @@ def detectSqueeze(df):
     
     cond2 =((df.bbu_minus_kcu <= 0) & (df.close > df.ema25))
     df.loc[cond2, 'squeezedArea'] = EMA25['PRICE_ACCION_OVER_EMA'].value
+
+def isTheLastTreeSqueezeCloseToEmaOverOrUnderEma(df):
     
+    df['lastTreeOver'] = df['squeezeCloseToEma'].tail(3).apply(lambda x: x==EMA25['PRICE_ACCION_OVER_EMA'].value).count()
+    df['lastTreeUnder'] = df['squeezeCloseToEma'].tail(3).apply(lambda x: x==EMA25['PRICE_ACCION_UNDER_EMA'].value).count()
+
+
 class POSITION(enum.Enum):
     NEUTRAL = 0
     LONG = 1
