@@ -15,10 +15,11 @@ def squeez(df, window=1):
     detectSqueezeCloseToEMA(df)
     isTheLastTreeSqueezeCloseToEmaOverOrUnderEma(df)
     priceActionUptrendInShortTerm(df)
-    detectPosition(df)
+    detectPosibleEntry(df)
+    setPosition(df)
 
-    df = df[['index','date_est','time_est','high','low','close','volume','open','position','buying_price',
-             'selling_price','lastTreeOver','lastTreeUnder']] 
+    df = df[['index','date_est','time_est','high','low','close','volume','open','buying_price',
+             'selling_price','close_smooth', 'ema25','lastTreeOver', 'lastTreeUnder','squeezedArea', 'squeezeCloseToEma', 'posibleEntry','position']] 
     
     return df
     
@@ -43,71 +44,33 @@ def init(df):
     df.set_index("YMD")
 
     return df
-    
-def detectPosition(df):
+
+def setPosition(df):
     
     ''' START POSITION
     '''
     
     ''' GO LONG
     '''
-    cond = (
-                (
-                   (df['position'] == POSITION['NEUTRAL'].value) & (df['lastTreeOver']==3)
-                ) & 
-                (
-                    (df.squeezeCloseToEma == EMA25['PRICE_ACCION_OVER_EMA'].value) & (df.isTheDayAbove25Ema == True)
-                )
-            )
-
-    df.loc[cond, 'buying_price'] = df['close']
+    cond = (df['posibleEntry'] = POSITION['LONG'].value & df['position'] == POSITION['NEUTRAL'].value)
     df.loc[cond, 'position'] = POSITION['LONG'].value
-    
+    df.loc[cond, 'buying_price'] = df['close']
+
     ''' GO SHORT
     '''
-    cond2 = (
-                (
-                    (df['position'] == POSITION['NEUTRAL'].value) & (df['lastTreeUnder']==3)
-                ) & 
-                (
-                    (df.squeezeCloseToEma == EMA25['PRICE_ACCION_UNDER_EMA'].value) & (df.isTheDayAbove25Ema == False)
-                )
-            )
-
-    df.loc[cond2, 'selling_price'] = df['close']
+    cond2 = (df['posibleEntry'] = POSITION['SHORT'].value & df['position'] == POSITION['NEUTRAL'].value)
     df.loc[cond2, 'position'] = POSITION['SHORT'].value
+    df.loc[cond2, 'selling_price'] = df['close']
+    
+def detectPosibleEntry(df):
 
+    df['posibleEntry'] = POSITION['NEUTRAL'].value
     
-    ''' TARGET AND STOPS
-    '''
-    
-    ''' GET OUT IF WE HIT OUR TARGET OR STOP IN THE LONG POSITION
-    '''
-    cond3 = (
-                (
-                    df['position'] == POSITION['LONG'].value
-                ) & 
-                (
-                    (df.close_smooth<df.ema25) | ((df['close']-df['buying_price'].tail(1)) >= 2)
-                )
-            )
-    
-    df.loc[cond3, 'position'] = POSITION['NEUTRAL'].value
-    
-    ''' GET OUT IF WE HIT OUR TARGET OR STOP IN THE SHORT POSITION
-    '''
-    cond4 = (
-                (
-                    df['position'] == POSITION['SHORT'].value
-                ) & 
-                (
-                    (df.close_smooth>df.ema25) | ((df['selling_price'].tail(1)-df['close']) >= 2)
-                )
-            )
-    
-    df.loc[cond4, 'position'] = POSITION['NEUTRAL'].value
-    
-    df = df[['index', 'est', 'high','low','close','volume','open','position','buying_price','selling_price','lastTreeOver','lastTreeUnder']]   
+    cond = ((df.squeezeCloseToEma == EMA25['PRICE_ACCION_OVER_EMA'].value) & (df.isTheDayAbove25Ema == True) & df.lastTreeOver == True)
+    df.loc[cond, 'posibleEntry'] = POSITION['LONG'].value
+
+    cond2 = ((df.squeezeCloseToEma == EMA25['PRICE_ACCION_UNDER_EMA'].value) & (df.isTheDayAbove25Ema == False) & df.lastTreeUnder == True)
+    df.loc[cond2, 'posibleEntry'] = POSITION['SHORT'].value
 
 def calculateBolingerAndKeltnerChannels(df, kc):
 
@@ -173,10 +136,9 @@ def detectSqueeze(df):
     df.loc[cond2, 'squeezedArea'] = EMA25['PRICE_ACCION_OVER_EMA'].value
 
 def isTheLastTreeSqueezeCloseToEmaOverOrUnderEma(df):
-    
-    df['lastTreeOver'] = df['squeezeCloseToEma'].tail(3).apply(lambda x: x==EMA25['PRICE_ACCION_OVER_EMA'].value).count()
-    df['lastTreeUnder'] = df['squeezeCloseToEma'].tail(3).apply(lambda x: x==EMA25['PRICE_ACCION_UNDER_EMA'].value).count()
 
+    df['lastTreeOver'] = df['squeezeCloseToEma'].rolling(3).sum().eq(3)
+    df['lastTreeUnder'] = df['squeezeCloseToEma'].rolling(3).sum().eq(6)
 
 class POSITION(enum.Enum):
     NEUTRAL = 0
