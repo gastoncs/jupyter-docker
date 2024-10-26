@@ -17,7 +17,7 @@ def squeez(df, window=1):
     priceActionUptrendInShortTerm(df)
     detectPosition(df)
 
-    df = df[['index', 'est', 'high','low','close','volume','open','position','buying_price',
+    df = df[['index','date_est','time_est','high','low','close','volume','open','position','buying_price',
              'selling_price','lastTreeOver','lastTreeUnder']] 
     
     return df
@@ -35,8 +35,11 @@ def init(df):
     df["high_smooth"] = savgol_filter(df.high, 49, 5)
     df["low_smooth"] = savgol_filter(df.low, 49, 5)
     df['YMD'] = df.index.strftime('%Y%m%d')
-    df["est"] = pd.to_datetime(df.index, unit='ms').tz_localize('UTC').tz_convert('US/Eastern').strftime('%Y-%m-%d %H:%M:%S')
-    
+    estTime = pd.to_datetime(df.index, unit='ms').tz_localize('UTC').tz_convert('US/Eastern')
+    df["est"] = estTime.strftime('%Y-%m-%d %H:%M:%S')
+    df['date_est']=estTime.date
+    df['time_est']=estTime.time
+
     df.set_index("YMD")
 
     return df
