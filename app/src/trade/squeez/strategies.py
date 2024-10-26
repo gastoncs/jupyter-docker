@@ -8,6 +8,12 @@ from scipy.signal import savgol_filter
 def squeez(df, window=1):
 
     df = df.copy()
+
+    ''' Create columns if does not exist
+    '''
+    cols_to_check = ['high','low','close','volume','open','position']
+    new_list =list(set(df.columns).union(cols_to_check))
+    df = df.reindex(columns=sorted(new_list)).fillna(0)
     
     df['ema25'] = df['close'].ewm(span=25, adjust=False).mean()
     df["close_smooth"] = savgol_filter(df.close, 49, 5)
@@ -25,22 +31,26 @@ def squeez(df, window=1):
     ''' GO LONG
     '''
     cond = (
-                (df['position'] == POSITION['NEUTRAL'].value) || (("position" in df.columns)==False)
-           ) & 
-           (
-             (df.squeezeCloseToEma == EMA25['PRICE_ACCION_OVER_EMA'].value) & (df.isTheDayAbove25Ema == True)
-           )
+                (
+                   df['position'] == POSITION['NEUTRAL'].value 
+                ) & 
+                (
+                    (df.squeezeCloseToEma == EMA25['PRICE_ACCION_OVER_EMA'].value) & (df.isTheDayAbove25Ema == True)
+                )
+            )
 
     df.loc[cond, 'buying_price'] = df['close']
     df.loc[cond, 'position'] = POSITION['LONG'].value
     
-    ''' IF WE ARE LONG GET OUT IF WE HIT OUR TARGET OR STOP
+    ''' GET OUT IF WE HIT OUR TARGET OR STOP IN THE LONG POSITION
     '''
     cond2 = (
-                df['position'] == POSITION['LONG'].value
-            ) & 
-            (
-                (df.close5minSmooth<df.ema25) || ((df['close']-df['buying_price'].tail(1)) >= 2)
+                (
+                    df['position'] == POSITION['LONG'].value
+                ) & 
+                (
+                    (df.close_smooth<df.ema25) | ((df['close']-df['buying_price'].tail(1)) >= 2)
+                )
             )
     
     df.loc[cond2, 'position'] = POSITION['NEUTRAL'].value
@@ -48,22 +58,26 @@ def squeez(df, window=1):
     ''' GO SHORT
     '''
     cond3 = (
-                (df['position'] == POSITION['NEUTRAL'].value) || (("position" in df.columns)==False)
-            ) & 
-            (
-                (df.squeezeCloseToEma == EMA25['PRICE_ACCION_UNDER_EMA'].value) & (df.isTheDayAbove25Ema == False)
+                (
+                    (df['position'] == POSITION['NEUTRAL'].value)
+                ) & 
+                (
+                    (df.squeezeCloseToEma == EMA25['PRICE_ACCION_UNDER_EMA'].value) & (df.isTheDayAbove25Ema == False)
+                )
             )
 
     df.loc[cond3, 'selling_price'] = df['close']
     df.loc[cond3, 'position'] = POSITION['SHORT'].value
 
-    ''' IF WE ARE SHORT GET OUT IF WE HIT OUR TARGET OR STOP
+    ''' GET OUT IF WE HIT OUR TARGET OR STOP IN THE SHORT POSITION
     '''
     cond4 = (
-                df['position'] == POSITION['SHORT'].value
-            ) & 
-            (
-                (df.close5minSmooth>df.ema25) || ((df['selling_price'].tail(1)-df['close']) >= 2)
+                (
+                    df['position'] == POSITION['SHORT'].value
+                ) & 
+                (
+                    (df.close_smooth>df.ema25) | ((df['selling_price'].tail(1)-df['close']) >= 2)
+                )
             )
     
     df.loc[cond4, 'position'] = POSITION['NEUTRAL'].value
@@ -122,9 +136,10 @@ def squeez(df, window=1):
             #LOG DATA
             #trans = [date_est, time_est, candle, self.symbol, units_before_transaction, round(current_price,2), 'B']
             #log_sequence.append(trans)
-
     '''
     
+    df = df[['high','low','close','volume','open','position']] 
+
     return df
 
 def calculateBolingerAndKeltnerChannels(df, kc):
@@ -158,7 +173,9 @@ def detectSqueezeCloseToEMA(df, zoneWidth = .30)->None:
     ''' Over the EMA
     '''
     cond =(
-            (df.squeezedArea == EMA25['PRICE_ACCION_OVER_EMA'].value) &
+            (
+                df.squeezedArea == EMA25['PRICE_ACCION_OVER_EMA'].value
+            ) &
             (
                 abs(df.low_smooth-df.ema25<=zoneWidth)
             )
