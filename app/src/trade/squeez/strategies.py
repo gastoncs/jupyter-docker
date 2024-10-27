@@ -15,11 +15,10 @@ def squeez(df, window=1):
     detectSqueezeCloseToEMA(df)
     isTheLastTreeSqueezeCloseToEmaOverOrUnderEma(df)
     priceActionUptrendInShortTerm(df)
-    detectPosibleEntry(df)
     setPosition(df)
 
     df = df[['index','date_est','time_est','high','low','close','volume','open','buying_price',
-             'selling_price','close_smooth', 'ema25','lastTreeOver', 'lastTreeUnder','squeezedArea', 'squeezeCloseToEma', 'posibleEntry','position']] 
+             'selling_price','close_smooth', 'ema25','isTheDayAbove25Ema','lastTreeOver', 'lastTreeUnder','squeezedArea', 'squeezeCloseToEma', 'position']] 
     
     return df
     
@@ -40,7 +39,7 @@ def init(df):
     df["est"] = estTime.strftime('%Y-%m-%d %H:%M:%S')
     df['date_est']=estTime.date
     df['time_est']=estTime.time
-
+    
     df.set_index("YMD")
 
     return df
@@ -52,25 +51,32 @@ def setPosition(df):
     
     ''' GO LONG
     '''
-    cond = (df['posibleEntry'] = POSITION['LONG'].value & df['position'] == POSITION['NEUTRAL'].value)
+    cond = ((df.squeezeCloseToEma == EMA25['PRICE_ACCION_OVER_EMA'].value) & 
+                (df.isTheDayAbove25Ema == True) & df.lastTreeOver == True)
+    
     df.loc[cond, 'position'] = POSITION['LONG'].value
     df.loc[cond, 'buying_price'] = df['close']
 
     ''' GO SHORT
     '''
-    cond2 = (df['posibleEntry'] = POSITION['SHORT'].value & df['position'] == POSITION['NEUTRAL'].value)
+    cond2 = ((df.squeezeCloseToEma == EMA25['PRICE_ACCION_UNDER_EMA'].value) & 
+                 (df.isTheDayAbove25Ema == False) & df.lastTreeUnder == True)
+    
     df.loc[cond2, 'position'] = POSITION['SHORT'].value
     df.loc[cond2, 'selling_price'] = df['close']
-    
-def detectPosibleEntry(df):
 
-    df['posibleEntry'] = POSITION['NEUTRAL'].value
+    ''' TARGET AND STOPS
+    '''
     
-    cond = ((df.squeezeCloseToEma == EMA25['PRICE_ACCION_OVER_EMA'].value) & (df.isTheDayAbove25Ema == True) & df.lastTreeOver == True)
-    df.loc[cond, 'posibleEntry'] = POSITION['LONG'].value
+    ''' GET OUT IF WE HIT OUR TARGET OR STOP IN THE LONG POSITION
+    '''
+    cond3 = ((df['position'] == POSITION['LONG'].value) & ((df.close_smooth<df.ema25)))
+    df.loc[cond3, 'position'] = POSITION['NEUTRAL'].value
 
-    cond2 = ((df.squeezeCloseToEma == EMA25['PRICE_ACCION_UNDER_EMA'].value) & (df.isTheDayAbove25Ema == False) & df.lastTreeUnder == True)
-    df.loc[cond2, 'posibleEntry'] = POSITION['SHORT'].value
+    ''' GET OUT IF WE HIT OUR TARGET OR STOP IN THE SHORT POSITION
+    '''
+    cond4 = ((df['position'] == POSITION['SHORT'].value) & (df.close_smooth>df.ema25))    
+    df.loc[cond4, 'position'] = POSITION['NEUTRAL'].value
 
 def calculateBolingerAndKeltnerChannels(df, kc):
 

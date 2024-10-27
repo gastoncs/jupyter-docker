@@ -201,6 +201,7 @@ class XtbTrader():
                     self.live_df = pd.DataFrame()
                     self.raw_data = self.strategy(self.raw_data)
                     self.last_bar=self.raw_data.index[-1]
+                    
                     if self.trade_counter == 0:
 
                         if self.start_order_pos != None:
