@@ -5,6 +5,8 @@ import enum
 from pandas_ta.volatility import kc 
 from scipy.signal import savgol_filter
 
+position = 0
+
 def squeez(df, window=1):
 
     df = df.copy()
@@ -15,10 +17,14 @@ def squeez(df, window=1):
     detectSqueezeCloseToEMA(df)
     isTheLastTreeSqueezeCloseToEmaOverOrUnderEma(df)
     priceActionUptrendInShortTerm(df)
-    setPosition(df)
+    detectPosibleEntry(df)
 
-    df = df[['index','date_est','time_est','high','low','close','volume','open','buying_price',
-             'selling_price','close_smooth', 'ema25','isTheDayAbove25Ema','lastTreeOver', 'lastTreeUnder','squeezedArea', 'squeezeCloseToEma', 'position']] 
+    df['position'] = [setPosition(row[0],row[1],row[2],row[3]) 
+                          for row in df[['close','close_smooth','ema25','posible_entry']].to_numpy()]
+    
+    df = df[['date_est','time_est','high','low','close','volume','open','buyingPrice',
+             'sellingPrice','close_smooth', 'ema25','isTheDayAbove25Ema','lastTreeOver', 'lastTreeUnder',
+             'squeezedArea', 'squeezeCloseToEma', 'index', 'posible_entry','position']] 
     
     return df
     
@@ -26,7 +32,9 @@ def init(df):
     
     ''' Create columns if does not exist
     '''
-    cols_to_check = ['index','high','low','close','volume','open','position']
+    cols_to_check = ['index','high','low','close','volume','open','position',
+                     'buyingPrice','sellingPrice','entry','exit','finalPosition']
+    
     new_list =list(set(df.columns).union(cols_to_check))
     df = df.reindex(columns=sorted(new_list)).fillna(0)
     
@@ -44,39 +52,57 @@ def init(df):
 
     return df
 
-def setPosition(df):
+def setPosition(close, close_smooth, ema, posible_entry):
+
+    global position
     
     ''' START POSITION
     '''
-    
     ''' GO LONG
-    '''
-    cond = ((df.squeezeCloseToEma == EMA25['PRICE_ACCION_OVER_EMA'].value) & 
-                (df.isTheDayAbove25Ema == True) & df.lastTreeOver == True)
-    
-    df.loc[cond, 'position'] = POSITION['LONG'].value
-    df.loc[cond, 'buying_price'] = df['close']
+    '''        
+    #cond = (df['posibleEntry'] == POSITION['LONG'].value)
+    #df.loc[cond, 'position'] = POSITION['LONG'].value
+    #df.loc[cond, 'buyingPrice'] = df['close']
 
     ''' GO SHORT
-    '''
-    cond2 = ((df.squeezeCloseToEma == EMA25['PRICE_ACCION_UNDER_EMA'].value) & 
-                 (df.isTheDayAbove25Ema == False) & df.lastTreeUnder == True)
-    
-    df.loc[cond2, 'position'] = POSITION['SHORT'].value
-    df.loc[cond2, 'selling_price'] = df['close']
+    ''' 
+    #cond2 = (df['posibleEntry'] == POSITION['SHORT'].value)
+    #df.loc[cond2, 'position'] = POSITION['SHORT'].value
+    #df.loc[cond2, 'sellingPrice'] = df['close']
 
-    ''' TARGET AND STOPS
-    '''
-    
-    ''' GET OUT IF WE HIT OUR TARGET OR STOP IN THE LONG POSITION
-    '''
-    cond3 = ((df['position'] == POSITION['LONG'].value) & ((df.close_smooth<df.ema25)))
-    df.loc[cond3, 'position'] = POSITION['NEUTRAL'].value
 
-    ''' GET OUT IF WE HIT OUR TARGET OR STOP IN THE SHORT POSITION
-    '''
-    cond4 = ((df['position'] == POSITION['SHORT'].value) & (df.close_smooth>df.ema25))    
-    df.loc[cond4, 'position'] = POSITION['NEUTRAL'].value
+    if posible_entry==POSITION['SHORT'].value:
+        position=POSITION['SHORT'].value
+    elif posible_entry==POSITION['LONG'].value:
+        position=POSITION['LONG'].value
+    else:
+        if close_smooth>ema and position==POSITION['SHORT'].value:
+            position=POSITION['NEUTRAL'].value
+        elif close_smooth<ema and position==POSITION['LONG'].value:
+            position=POSITION['NEUTRAL'].value
+
+    return position
+
+    
+def detectPosibleEntry(df):
+
+    df['posible_entry'] = POSITION['NEUTRAL'].value
+    
+    cond = (
+        (df.squeezeCloseToEma == EMA25['PRICE_ACCION_OVER_EMA'].value) & 
+                (df.isTheDayAbove25Ema == True) & 
+                        (df.lastTreeOver == True)
+    )
+    
+    df.loc[cond, 'posible_entry'] = POSITION['LONG'].value
+
+    cond2 = (
+        (df.squeezeCloseToEma == EMA25['PRICE_ACCION_UNDER_EMA'].value) & 
+                (df.isTheDayAbove25Ema == False) & 
+                        (df.lastTreeUnder == True)
+    )
+    
+    df.loc[cond2, 'posible_entry'] = POSITION['SHORT'].value
 
 def calculateBolingerAndKeltnerChannels(df, kc):
 
