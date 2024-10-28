@@ -12,7 +12,7 @@ def squeez(df, window=1):
     df = df.copy()
 
     df = init(df)
-    calculateBolingerAndKeltnerChannels(df, kc)
+    calculateBoolingerAndKeltnerChannels(df, kc)
     detectSqueeze(df)
     detectSqueezeCloseToEMA(df)
     isTheLastTreeSqueezeCloseToEmaOverOrUnderEma(df)
@@ -55,21 +55,6 @@ def init(df):
 def setPosition(close, close_smooth, ema, posible_entry):
 
     global position
-    
-    ''' START POSITION
-    '''
-    ''' GO LONG
-    '''        
-    #cond = (df['posibleEntry'] == POSITION['LONG'].value)
-    #df.loc[cond, 'position'] = POSITION['LONG'].value
-    #df.loc[cond, 'buyingPrice'] = df['close']
-
-    ''' GO SHORT
-    ''' 
-    #cond2 = (df['posibleEntry'] == POSITION['SHORT'].value)
-    #df.loc[cond2, 'position'] = POSITION['SHORT'].value
-    #df.loc[cond2, 'sellingPrice'] = df['close']
-
 
     if posible_entry==POSITION['SHORT'].value:
         position=POSITION['SHORT'].value
@@ -82,7 +67,6 @@ def setPosition(close, close_smooth, ema, posible_entry):
             position=POSITION['NEUTRAL'].value
 
     return position
-
     
 def detectPosibleEntry(df):
 
@@ -104,15 +88,15 @@ def detectPosibleEntry(df):
     
     df.loc[cond2, 'posible_entry'] = POSITION['SHORT'].value
 
-def calculateBolingerAndKeltnerChannels(df, kc):
+def calculateBoolingerAndKeltnerChannels(df, kc):
 
-    # Bolinger Bands
+    # Boolinger Bands
     df.ta.bbands(append=True, length=20, std=2)
     
     # Initialize Keltner Channel Indictor
     kc=kc(high=df['high'], low=df['low'], close=df["close"], window=20)
     
-    #Bolinger Band Upper - Keltner Channel Upper
+    #Boolinger Band Upper - Keltner Channel Upper
     df['bbu_minus_kcu'] = df['BBU_20_2.0'] - kc['KCUe_20_2']
     
 def priceActionUptrendInShortTerm(df, zoneWidth = .30):
