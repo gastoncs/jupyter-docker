@@ -7,6 +7,7 @@ from scipy.signal import savgol_filter
 
 position = 0
 price = 0
+comb = []
 
 def squeez(df, window=1):
 
@@ -20,11 +21,13 @@ def squeez(df, window=1):
     priceActionUptrendInShortTerm(df)
     detectPosibleEntry(df)
 
-    df['position'] = [setPosition(row[0],row[1],row[2],row[3]) 
-                          for row in df[['close','close_smooth','ema25','posible_entry']].to_numpy()]
-    
-    df = df[['index','date_est','time_est','high','low','close','volume','open','close_smooth', 'ema25',
-             'squeezed_area', 'squeeze_close_ema','posible_entry','position']] 
+    pos,buying_price = zip(* [setPosition(row[0],row[1],row[2],row[3]) 
+                          for row in df[['close','close_smooth','ema25','posible_entry']].to_numpy()])
+    df['position']=pos 
+    df['price']=buying_price
+                       
+    df = df[['index','symbol','date_est','time_est','high','low','close','volume','open','close_smooth','ema25',
+             'squeezed_area','squeeze_close_ema','posible_entry','qty','position','price']] 
     
     return df
     
@@ -37,6 +40,8 @@ def init(df):
     new_list =list(set(df.columns).union(cols_to_check))
     df = df.reindex(columns=sorted(new_list)).fillna(0)
     
+    df['symbol'] = 'GOOGLE'
+    df['qty'] = 10
     df['ema25'] = df['close'].ewm(span=25, adjust=False).mean()
     df["close_smooth"] = savgol_filter(df.close, 49, 5)
     df["high_smooth"] = savgol_filter(df.high, 49, 5)
@@ -53,7 +58,7 @@ def init(df):
 
 def setPosition(close, close_smooth, ema, posible_entry):
 
-    global position,price
+    global position, price
 
     if posible_entry==POSITION['SHORT'].value:
         position=POSITION['SHORT'].value
@@ -68,8 +73,9 @@ def setPosition(close, close_smooth, ema, posible_entry):
         elif close_smooth<ema and position==POSITION['LONG'].value or (close-price) >= 2:
             position=POSITION['NEUTRAL'].value
             price = 0
-            
-    return position
+
+    return position,price
+     
     
 def detectPosibleEntry(df):
 
