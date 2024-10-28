@@ -6,6 +6,7 @@ from pandas_ta.volatility import kc
 from scipy.signal import savgol_filter
 
 position = 0
+price = 0
 
 def squeez(df, window=1):
 
@@ -22,9 +23,8 @@ def squeez(df, window=1):
     df['position'] = [setPosition(row[0],row[1],row[2],row[3]) 
                           for row in df[['close','close_smooth','ema25','posible_entry']].to_numpy()]
     
-    df = df[['date_est','time_est','high','low','close','volume','open','buyingPrice',
-             'sellingPrice','close_smooth', 'ema25','isTheDayAbove25Ema','lastTreeOver', 'lastTreeUnder',
-             'squeezedArea', 'squeezeCloseToEma', 'index', 'posible_entry','position']] 
+    df = df[['index','date_est','time_est','high','low','close','volume','open','close_smooth', 'ema25',
+             'squeezed_area', 'squeeze_close_ema','posible_entry','position']] 
     
     return df
     
@@ -32,8 +32,7 @@ def init(df):
     
     ''' Create columns if does not exist
     '''
-    cols_to_check = ['index','high','low','close','volume','open','position',
-                     'buyingPrice','sellingPrice','entry','exit','finalPosition']
+    cols_to_check = ['high','low','close','volume','open','position']
     
     new_list =list(set(df.columns).union(cols_to_check))
     df = df.reindex(columns=sorted(new_list)).fillna(0)
@@ -54,18 +53,22 @@ def init(df):
 
 def setPosition(close, close_smooth, ema, posible_entry):
 
-    global position
+    global position,price
 
     if posible_entry==POSITION['SHORT'].value:
         position=POSITION['SHORT'].value
+        price = close
     elif posible_entry==POSITION['LONG'].value:
         position=POSITION['LONG'].value
+        price = close
     else:
-        if close_smooth>ema and position==POSITION['SHORT'].value:
+        if close_smooth>ema and position==POSITION['SHORT'].value or (price-close) >= 2:
             position=POSITION['NEUTRAL'].value
-        elif close_smooth<ema and position==POSITION['LONG'].value:
+            price = 0
+        elif close_smooth<ema and position==POSITION['LONG'].value or (close-price) >= 2:
             position=POSITION['NEUTRAL'].value
-
+            price = 0
+            
     return position
     
 def detectPosibleEntry(df):
@@ -73,7 +76,7 @@ def detectPosibleEntry(df):
     df['posible_entry'] = POSITION['NEUTRAL'].value
     
     cond = (
-        (df.squeezeCloseToEma == EMA25['PRICE_ACCION_OVER_EMA'].value) & 
+        (df.squeeze_close_ema == EMA25['PRICE_ACCION_OVER_EMA'].value) & 
                 (df.isTheDayAbove25Ema == True) & 
                         (df.lastTreeOver == True)
     )
@@ -81,7 +84,7 @@ def detectPosibleEntry(df):
     df.loc[cond, 'posible_entry'] = POSITION['LONG'].value
 
     cond2 = (
-        (df.squeezeCloseToEma == EMA25['PRICE_ACCION_UNDER_EMA'].value) & 
+        (df.squeeze_close_ema == EMA25['PRICE_ACCION_UNDER_EMA'].value) & 
                 (df.isTheDayAbove25Ema == False) & 
                         (df.lastTreeUnder == True)
     )
@@ -114,47 +117,47 @@ def priceActionUptrendInShortTerm(df, zoneWidth = .30):
 
 def detectSqueezeCloseToEMA(df, zoneWidth = .30)->None:
     
-    df['squeezeCloseToEma'] = EMA25['PRICE_ACCION_NEUTRAL_EMA'].value
+    df['squeeze_close_ema'] = EMA25['PRICE_ACCION_NEUTRAL_EMA'].value
 
     ''' Over the EMA
     '''
     cond =(
             (
-                df.squeezedArea == EMA25['PRICE_ACCION_OVER_EMA'].value
+                df.squeezed_area == EMA25['PRICE_ACCION_OVER_EMA'].value
             ) &
             (
                 abs(df.low_smooth-df.ema25<=zoneWidth)
             )
         )
     
-    df.loc[cond, 'squeezeCloseToEma'] = EMA25['PRICE_ACCION_OVER_EMA'].value
+    df.loc[cond, 'squeeze_close_ema'] = EMA25['PRICE_ACCION_OVER_EMA'].value
 
     ''' Under the EMA
     '''
     cond =(
         (
-            df.squeezedArea == EMA25['PRICE_ACCION_UNDER_EMA'].value
+            df.squeezed_area == EMA25['PRICE_ACCION_UNDER_EMA'].value
         ) & 
         (
             abs(df.high_smooth-df.ema25<=zoneWidth)
         )
     )
     
-    df.loc[cond, 'squeezeCloseToEma'] = EMA25['PRICE_ACCION_UNDER_EMA'].value
+    df.loc[cond, 'squeeze_close_ema'] = EMA25['PRICE_ACCION_UNDER_EMA'].value
 
 def detectSqueeze(df):
 
-    df['squeezedArea'] = EMA25['PRICE_ACCION_NEUTRAL_EMA'].value
+    df['squeezed_area'] = EMA25['PRICE_ACCION_NEUTRAL_EMA'].value
     cond = ((df.bbu_minus_kcu <= 0) & (df.close < df.ema25))
-    df.loc[cond, 'squeezedArea'] = EMA25['PRICE_ACCION_UNDER_EMA'].value
+    df.loc[cond, 'squeezed_area'] = EMA25['PRICE_ACCION_UNDER_EMA'].value
     
     cond2 =((df.bbu_minus_kcu <= 0) & (df.close > df.ema25))
-    df.loc[cond2, 'squeezedArea'] = EMA25['PRICE_ACCION_OVER_EMA'].value
+    df.loc[cond2, 'squeezed_area'] = EMA25['PRICE_ACCION_OVER_EMA'].value
 
 def isTheLastTreeSqueezeCloseToEmaOverOrUnderEma(df):
 
-    df['lastTreeOver'] = df['squeezeCloseToEma'].rolling(3).sum().eq(3)
-    df['lastTreeUnder'] = df['squeezeCloseToEma'].rolling(3).sum().eq(6)
+    df['lastTreeOver'] = df['squeeze_close_ema'].rolling(3).sum().eq(3)
+    df['lastTreeUnder'] = df['squeeze_close_ema'].rolling(3).sum().eq(6)
 
 class POSITION(enum.Enum):
     NEUTRAL = 0
