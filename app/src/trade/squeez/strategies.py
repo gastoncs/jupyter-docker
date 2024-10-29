@@ -28,7 +28,7 @@ def squeez(df, window=1):
     df['price']=price
     df['transaction_number']=transaction_number
 
-    df = df[['symbol','date_est','time_est','high','low','close','open','close_smooth','ema25',
+    df = df[['symbol','date_est','time_est','high','low','close','volume','open','close_smooth','ema25',
              'squeezed_area','squeeze_close_ema','is_the_day_above_25ema','last_tree_under','last_tree_over',
              'posible_entry','qty','position','price','transaction_number']] 
     
@@ -39,23 +39,23 @@ def init(df):
     ''' Create columns if does not exist
     '''
     cols_to_check = ['high','low','close','volume','open','position','last_tree_under']
+    
     new_list =list(set(df.columns).union(cols_to_check))
-
+    df = df.reindex(columns=sorted(new_list)).fillna(0)
+    
     df['symbol'] = 'NVDA.US_9'
     df['qty'] = 10
-    df['time'] = df.index
-
-    df.reset_index(inplace=True, drop=True)
-    
     df['ema25'] = df['close'].ewm(span=25, adjust=False).mean()
     df["close_smooth"] = savgol_filter(df.close, 49, 5)
     df["high_smooth"] = savgol_filter(df.high, 49, 5)
     df["low_smooth"] = savgol_filter(df.low, 49, 5)
-    df['est']=pd.to_datetime(df['time'], unit='ms').dt.tz_localize('UTC').dt.tz_convert('US/Eastern')
-    df['YMD'] = df['est'].dt.strftime('%Y%m%d')
-    df['date_est']=df['est'].dt.date
-    df['time_est']=df['est'].dt.time
     
+    df['YMD'] = df.index.strftime('%Y%m%d')
+    estTime = pd.to_datetime(df.index, unit='ms').tz_localize('UTC').tz_convert('US/Eastern')
+    df["est"] = estTime.strftime('%Y-%m-%d %H:%M:%S')
+    df['date_est']=estTime.date
+    df['time_est']=estTime.time
+
     df.set_index("YMD")
 
     return df
@@ -177,19 +177,26 @@ def detectSqueeze(df):
 
 def isTheLastTreeSqueezeCloseToEmaOverOrUnderEma(df):
 
-    def check_previous_n_rows(row_index):
-        if row_index < n:
+    def check_previous_n_rows(date):
+        current_idx = df.index.get_loc(date)
+        if current_idx < n:
+            return pd.NaT
+        
+        previous_n_rows = df['squeeze_close_ema'].iloc[current_idx-n:current_idx]
+        count = (previous_n_rows == value_to_check).sum()
+        
+        if count >= n:
+            return True
+        else:
             return False
-        count = (df['squeeze_close_ema'].iloc[row_index-n:row_index]==value_to_check).sum()
-        return count >= n
     
     n = 3
     value_to_check = EMA25['PRICE_ACCION_OVER_EMA'].value
-    df['last_tree_over'] = df['squeeze_close_ema'].index.map(check_previous_n_rows)
-    
+    df['last_tree_over'] = df.index.map(check_previous_n_rows)
+
     value_to_check = EMA25['PRICE_ACCION_UNDER_EMA'].value
     df['last_tree_under'] = df['squeeze_close_ema'].index.map(check_previous_n_rows)
-
+    
 class POSITION(enum.Enum):
     NEUTRAL = 0
     LONG = 1
