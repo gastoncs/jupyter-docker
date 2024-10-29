@@ -4,10 +4,12 @@ import pandas_ta as ta
 import enum
 from pandas_ta.volatility import kc 
 from scipy.signal import savgol_filter
+from functools import partial
 
 position = 0
 price = 0
-comb = []
+record = 1
+transaction_number = 0
 
 def squeez(df, window=1):
 
@@ -21,13 +23,15 @@ def squeez(df, window=1):
     priceActionUptrendInShortTerm(df)
     detectPosibleEntry(df)
 
-    pos,buying_price = zip(* [setPosition(row[0],row[1],row[2],row[3]) 
-                          for row in df[['close','close_smooth','ema25','posible_entry']].to_numpy()])
+    pos,price,transaction_number = zip(*[setPosition(row[0],row[1],row[2],row[3]) 
+                                  for row in df[['close','close_smooth','ema25','posible_entry']].to_numpy()])
     df['position']=pos 
-    df['price']=buying_price
-                       
-    df = df[['index','symbol','date_est','time_est','high','low','close','volume','open','close_smooth','ema25',
-             'squeezed_area','squeeze_close_ema','posible_entry','qty','position','price']] 
+    df['price']=price
+    df['transaction_number']=transaction_number
+
+    df = df[['bar','symbol','date_est','time_est','high','low','close','volume','open','close_smooth','ema25',
+             'squeezed_area','squeeze_close_ema','is_the_day_above_25ema','last_tree_under','last_tree_over',
+             'posible_entry','qty','position','price','transaction_number']] 
     
     return df
     
@@ -35,7 +39,7 @@ def init(df):
     
     ''' Create columns if does not exist
     '''
-    cols_to_check = ['high','low','close','volume','open','position']
+    cols_to_check = ['high','low','close','volume','open','position','last_tree_under']
     
     new_list =list(set(df.columns).union(cols_to_check))
     df = df.reindex(columns=sorted(new_list)).fillna(0)
@@ -46,11 +50,11 @@ def init(df):
     df["close_smooth"] = savgol_filter(df.close, 49, 5)
     df["high_smooth"] = savgol_filter(df.high, 49, 5)
     df["low_smooth"] = savgol_filter(df.low, 49, 5)
-    df['YMD'] = df.index.strftime('%Y%m%d')
-    estTime = pd.to_datetime(df.index, unit='ms').tz_localize('UTC').tz_convert('US/Eastern')
-    df["est"] = estTime.strftime('%Y-%m-%d %H:%M:%S')
-    df['date_est']=estTime.date
-    df['time_est']=estTime.time
+    df['YMD'] = df['est'].dt.strftime('%Y%m%d')
+    #estTime = pd.to_datetime(df.index, unit='ms').tz_localize('UTC').tz_convert('US/Eastern')
+    #df["est"] = estTime.strftime('%Y-%m-%d %H:%M:%S')
+    df['date_est']=df['est'].dt.date
+    df['time_est']=df['est'].dt.time
     
     df.set_index("YMD")
 
@@ -58,41 +62,52 @@ def init(df):
 
 def setPosition(close, close_smooth, ema, posible_entry):
 
-    global position, price
+    global position, price, record, transaction_number
 
     if posible_entry==POSITION['SHORT'].value:
         position=POSITION['SHORT'].value
-        price = close
+        price = close if price==0 else price
+        if transaction_number != record:
+            transaction_number = record
+            
     elif posible_entry==POSITION['LONG'].value:
         position=POSITION['LONG'].value
-        price = close
+        price = close if price==0 else price 
+        if transaction_number != record:
+            transaction_number = record
     else:
         if close_smooth>ema and position==POSITION['SHORT'].value or (price-close) >= 2:
             position=POSITION['NEUTRAL'].value
             price = 0
+            if transaction_number == record:
+                record = record + 1
+                price = close 
+                
         elif close_smooth<ema and position==POSITION['LONG'].value or (close-price) >= 2:
             position=POSITION['NEUTRAL'].value
             price = 0
-
-    return position,price
+            if transaction_number == record:
+                record = record + 1
+                price = close 
+                
+    return position, price, transaction_number
      
-    
 def detectPosibleEntry(df):
 
     df['posible_entry'] = POSITION['NEUTRAL'].value
     
     cond = (
         (df.squeeze_close_ema == EMA25['PRICE_ACCION_OVER_EMA'].value) & 
-                (df.isTheDayAbove25Ema == True) & 
-                        (df.lastTreeOver == True)
+                (df.is_the_day_above_25ema == True) & 
+                        (df.last_tree_over == True)
     )
     
     df.loc[cond, 'posible_entry'] = POSITION['LONG'].value
 
     cond2 = (
         (df.squeeze_close_ema == EMA25['PRICE_ACCION_UNDER_EMA'].value) & 
-                (df.isTheDayAbove25Ema == False) & 
-                        (df.lastTreeUnder == True)
+                (df.is_the_day_above_25ema == False) & 
+                        (df.last_tree_under == True)
     )
     
     df.loc[cond2, 'posible_entry'] = POSITION['SHORT'].value
@@ -118,7 +133,7 @@ def priceActionUptrendInShortTerm(df, zoneWidth = .30):
     
     ''' If in the count of the isPriceActionAboveEma25 (in the day YMD) there are False then return False
     '''
-    df['isTheDayAbove25Ema'] = df.groupby('YMD').isPriceActionAboveEma25.transform(
+    df['is_the_day_above_25ema'] = df.groupby('YMD').isPriceActionAboveEma25.transform(
         lambda x: False if x[x==False].value_counts().shape[0] > 0 else True)
 
 def detectSqueezeCloseToEMA(df, zoneWidth = .30)->None:
@@ -162,8 +177,18 @@ def detectSqueeze(df):
 
 def isTheLastTreeSqueezeCloseToEmaOverOrUnderEma(df):
 
-    df['lastTreeOver'] = df['squeeze_close_ema'].rolling(3).sum().eq(3)
-    df['lastTreeUnder'] = df['squeeze_close_ema'].rolling(3).sum().eq(6)
+    def check_previous_n_rows(row_index):
+        if row_index < n:
+            return False
+        count = (df['squeeze_close_ema'].iloc[row_index-n:row_index]==value_to_check).sum()
+        return count >= n
+    
+    n = 3
+    value_to_check = EMA25['PRICE_ACCION_OVER_EMA'].value
+    df['last_tree_over'] = df['squeeze_close_ema'].index.map(check_previous_n_rows)
+    
+    value_to_check = EMA25['PRICE_ACCION_UNDER_EMA'].value
+    df['last_tree_under'] = df['squeeze_close_ema'].index.map(check_previous_n_rows)
 
 class POSITION(enum.Enum):
     NEUTRAL = 0
