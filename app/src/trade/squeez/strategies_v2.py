@@ -13,13 +13,17 @@ transaction_number = 0
 
 def squeez(df, window=1):
 
+    wiggle_room = 0.00050
     df = df.copy()
+
+    ''' Run calcs
+    '''
     df = init(df)
     calculateBoolingerAndKeltnerChannels(df, kc)
     detectSqueeze(df)
-    detectSqueezeCloseToEMA(df,0.00015)
+    detectSqueezeCloseToEMA(df, wiggle_room)
     isTheLastTreeSqueezeCloseToEmaOverOrUnderEma(df)
-    priceActionUptrendInShortTerm(df,0.00015)
+    priceActionUptrendInShortTerm(df, wiggle_room)
     detectPosibleEntry(df)
 
     pos,price,transaction_number = zip(*[setPosition(row[0],row[1],row[2],row[3]) 
@@ -28,9 +32,10 @@ def squeez(df, window=1):
     df['price']=price
     df['transaction_number']=transaction_number
 
-    df = df[['bar','symbol','date_est','time_est','high','low','close','volume','open','close_smooth','ema25',
-             'squeezed_area','squeeze_close_ema','is_the_day_above_25ema','last_tree_under','last_tree_over',
-             'posible_entry','qty','position','price','transaction_number']] 
+    df = df[['bar','symbol','date_est','time_est','high','low','close','volume','open',
+             'high_smooth','low_smooth','close_smooth','ema25','squeezed_area','squeeze_close_ema',
+             'is_the_day_above_25ema','last_tree_under','last_tree_over',
+             'posible_entry','position','price','transaction_number']] 
 
     #df = df[['high','low','close','volume','open','position']] 
     return df
@@ -65,26 +70,26 @@ def setPosition(close, close_smooth, ema, posible_entry):
 
     global position, price, record, transaction_number
 
-    if posible_entry==POSITION['SHORT'].value:
+    if (posible_entry==POSITION['SHORT'].value and position==POSITION['NEUTRAL'].value):
         position=POSITION['SHORT'].value
         price = close if price==0 else price
         if transaction_number != record:
             transaction_number = record
             
-    elif posible_entry==POSITION['LONG'].value:
+    elif (posible_entry==POSITION['LONG'].value and position==POSITION['NEUTRAL'].value):
         position=POSITION['LONG'].value
         price = close if price==0 else price 
         if transaction_number != record:
             transaction_number = record
     else:
-        if close_smooth>ema and position==POSITION['SHORT'].value or (price-close) >= 2:
+        if (position==POSITION['SHORT'].value and close_smooth>ema):
             position=POSITION['NEUTRAL'].value
             price = 0
             if transaction_number == record:
                 record = record + 1
                 price = close 
                 
-        elif close_smooth<ema and position==POSITION['LONG'].value or (close-price) >= 2:
+        elif (position==POSITION['LONG'].value and close_smooth<ema):
             position=POSITION['NEUTRAL'].value
             price = 0
             if transaction_number == record:
@@ -124,12 +129,12 @@ def calculateBoolingerAndKeltnerChannels(df, kc):
     #Boolinger Band Upper - Keltner Channel Upper
     df['bbu_minus_kcu'] = df['BBU_20_2.0'] - kc['KCUe_20_2']
     
-def priceActionUptrendInShortTerm(df, zoneWidth = .30):
+def priceActionUptrendInShortTerm(df, wiggle_room):
 
     ''' Check if the price action is above the ema if it does then is true else check if there is a wigle room of .30 cents
     '''
     df['isPriceActionAboveEma25'] = np.where(df.ema25 > df.close_smooth, 
-                                                 np.where((df.ema25-df.close_smooth)<=zoneWidth, True, False), 
+                                                 np.where(abs(df.ema25-df.close_smooth)<=wiggle_room, True, False), 
                                              np.where(df.ema25 < df.close_smooth, True, False))
     
     ''' If in the count of the isPriceActionAboveEma25 (in the day YMD) there are False then return False
@@ -137,7 +142,7 @@ def priceActionUptrendInShortTerm(df, zoneWidth = .30):
     df['is_the_day_above_25ema'] = df.groupby('YMD').isPriceActionAboveEma25.transform(
         lambda x: False if x[x==False].value_counts().shape[0] > 0 else True)
 
-def detectSqueezeCloseToEMA(df, zoneWidth = .30)->None:
+def detectSqueezeCloseToEMA(df, wiggle_room)->None:
     
     df['squeeze_close_ema'] = EMA25['PRICE_ACCION_NEUTRAL_EMA'].value
 
@@ -148,7 +153,7 @@ def detectSqueezeCloseToEMA(df, zoneWidth = .30)->None:
                 df.squeezed_area == EMA25['PRICE_ACCION_OVER_EMA'].value
             ) &
             (
-                abs(df.low_smooth-df.ema25<=zoneWidth)
+                abs(df.low_smooth-df.ema25)<=wiggle_room
             )
         )
     
@@ -161,7 +166,7 @@ def detectSqueezeCloseToEMA(df, zoneWidth = .30)->None:
             df.squeezed_area == EMA25['PRICE_ACCION_UNDER_EMA'].value
         ) & 
         (
-            abs(df.high_smooth-df.ema25<=zoneWidth)
+            abs(df.high_smooth-df.ema25)<=wiggle_room
         )
     )
     

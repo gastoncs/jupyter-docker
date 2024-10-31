@@ -35,7 +35,7 @@ class DataCollectorXtbV2():
                 add column with spreads
     
     '''
-    def __init__(self, symbol, start, end, period, cols_to_save=['Date', 'Open', 'Close', 'High', 'Low', 'Vol'],
+    def __init__(self, symbol, start, end, period, cols_to_save=['Date', 'Open', 'Close', 'High', 'Low', 'Volume'],
                  spread_col=False):
         
         self.symbol = symbol
@@ -93,7 +93,7 @@ class DataCollectorXtbV2():
         history_data = client.commandExecute('getChartRangeRequest', arguments=args)
         df = self.history_converter(history_data)
 
-        if self.cols_to_save==['Close'] or self.cols_to_save==['Close','vol']:
+        if self.cols_to_save==['Close'] or self.cols_to_save==['Close','Volu']:
             df=df.rename(columns={'Close':self.symbol})
         
         self.data = df
