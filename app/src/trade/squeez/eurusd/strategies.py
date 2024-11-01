@@ -76,14 +76,14 @@ def setPosition(close, close_smooth, ema, posible_entry, pips):
 
     if (posible_entry==POSITION['SHORT'].value and position==POSITION['NEUTRAL'].value):
         position=POSITION['SHORT'].value
-        price = close if price==0 else price
+        price = close
         target_price = price - pips
         if transaction_number != record:
             transaction_number = record
             
     elif (posible_entry==POSITION['LONG'].value and position==POSITION['NEUTRAL'].value):
         position=POSITION['LONG'].value
-        price = close if price==0 else price 
+        price = close 
         target_price = price + pips
         if transaction_number != record:
             transaction_number = record
@@ -91,7 +91,6 @@ def setPosition(close, close_smooth, ema, posible_entry, pips):
         if (position==POSITION['SHORT'].value and (close_smooth>ema or target_price==close)):
             position=POSITION['NEUTRAL'].value
             price = 0
-            target_price = 0
             if transaction_number == record:
                 record = record + 1
                 price = close 
@@ -99,7 +98,6 @@ def setPosition(close, close_smooth, ema, posible_entry, pips):
         elif (position==POSITION['LONG'].value and (close_smooth<ema or target_price==close)):
             position=POSITION['NEUTRAL'].value
             price = 0
-            target_price = 0
             if transaction_number == record:
                 record = record + 1
                 price = close 
