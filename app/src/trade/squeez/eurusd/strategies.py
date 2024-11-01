@@ -14,7 +14,7 @@ target_price = 0
 
 def squeez(df, window=1):
 
-    wiggle_room = 0.00050
+    wiggle_room = 0.00015
     pips = 0.002
     
     df = df.copy()
@@ -53,7 +53,7 @@ def init(df):
     new_list =list(set(df.columns).union(cols_to_check))
     df = df.reindex(columns=sorted(new_list)).fillna(0)
     
-    df['symbol'] = 'AMD'
+    df['symbol'] = 'EURUSD'
     df['qty'] = 10
     df['ema25'] = df['close'].ewm(span=25, adjust=False).mean()
     df["close_smooth"] = savgol_filter(df.close, 49, 5)
