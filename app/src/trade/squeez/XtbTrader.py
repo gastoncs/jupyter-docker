@@ -307,7 +307,7 @@ class XtbTrader():
                 self.save_history()
 
                 if self.position_closed:
-                    self.open_position('sell')
+                    self.open_position('sell', df['target_price'].iloc[-1])
 
             if df['position'].iloc[-1] == 0:
                 self.close_order()
@@ -323,7 +323,7 @@ class XtbTrader():
                 self.save_history()
 
                 if self.position_closed:
-                    self.open_position('buy')
+                    self.open_position('buy', df['target_price'].iloc[-1])
 
             if df['position'].iloc[-1] == 0:
                 self.close_order()
@@ -336,11 +336,11 @@ class XtbTrader():
             
             if df['position'].iloc[-1] == 1:
 
-                self.open_position('buy')
+                self.open_position('buy', df['target_price'].iloc[-1])
 
             if df['position'].iloc[-1] == -1:
 
-                self.open_position('sell')
+                self.open_position('sell', df['target_price'].iloc[-1])
 
     def close_order(self):
         
@@ -377,7 +377,7 @@ class XtbTrader():
             self.check_hist = False
             self.position_closed = True
 
-    def open_position(self, position_type):
+    def open_position(self, position_type, target_price):
 
         '''
         Description
@@ -400,8 +400,8 @@ class XtbTrader():
                 'volume': self.units,
                 'symbol': self.instrument,
                 'price': self.client.commandExecute("getSymbol", arguments={'symbol': self.instrument})['returnData'][
-                    ask_bid]
-
+                    ask_bid],
+                 'tp':target_price
             }
         })
 

@@ -10,10 +10,13 @@ position = 0
 price = 0
 record = 1
 transaction_number = 0
+target_price = 0
 
 def squeez(df, window=1):
 
     wiggle_room = 0.00050
+    pips = 0.002
+    
     df = df.copy()
 
     ''' Run calcs
@@ -26,16 +29,17 @@ def squeez(df, window=1):
     priceActionUptrendInShortTerm(df, wiggle_room)
     detectPosibleEntry(df)
 
-    pos,price,transaction_number = zip(*[setPosition(row[0],row[1],row[2],row[3]) 
+    pos,price,transaction_number,target_price = zip(*[setPosition(row[0],row[1],row[2],row[3], pips) 
                                   for row in df[['close','close_smooth','ema25','posible_entry']].to_numpy()])
     df['position']=pos 
     df['price']=price
     df['transaction_number']=transaction_number
-
+    df['target_price']=target_price
+    
     df = df[['bar','symbol','date_est','time_est','high','low','close','volume','open',
              'high_smooth','low_smooth','close_smooth','ema25','squeezed_area','squeeze_close_ema',
              'is_the_day_above_25ema','last_tree_under','last_tree_over',
-             'posible_entry','position','price','transaction_number']] 
+             'posible_entry','position','price','target_price','transaction_number']] 
 
     #df = df[['high','low','close','volume','open','position']] 
     return df
@@ -66,37 +70,41 @@ def init(df):
 
     return df
 
-def setPosition(close, close_smooth, ema, posible_entry):
+def setPosition(close, close_smooth, ema, posible_entry, pips):
 
-    global position, price, record, transaction_number
+    global position, price, record, transaction_number, target_price
 
     if (posible_entry==POSITION['SHORT'].value and position==POSITION['NEUTRAL'].value):
         position=POSITION['SHORT'].value
         price = close if price==0 else price
+        target_price = price - pips
         if transaction_number != record:
             transaction_number = record
             
     elif (posible_entry==POSITION['LONG'].value and position==POSITION['NEUTRAL'].value):
         position=POSITION['LONG'].value
         price = close if price==0 else price 
+        target_price = price + pips
         if transaction_number != record:
             transaction_number = record
     else:
-        if (position==POSITION['SHORT'].value and close_smooth>ema):
+        if (position==POSITION['SHORT'].value and (close_smooth>ema or target_price==close)):
             position=POSITION['NEUTRAL'].value
             price = 0
+            target_price = 0
             if transaction_number == record:
                 record = record + 1
                 price = close 
                 
-        elif (position==POSITION['LONG'].value and close_smooth<ema):
+        elif (position==POSITION['LONG'].value and (close_smooth<ema or target_price==close)):
             position=POSITION['NEUTRAL'].value
             price = 0
+            target_price = 0
             if transaction_number == record:
                 record = record + 1
                 price = close 
                 
-    return position, price, transaction_number
+    return position, price, transaction_number, target_price
      
 def detectPosibleEntry(df):
 

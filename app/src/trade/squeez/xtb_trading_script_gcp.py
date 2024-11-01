@@ -14,8 +14,8 @@ try:
     
     #instantiate trading session
     warning_candle_counter=0
-    xt = XtbTrader(instrument='EURUSD', interval='5min', lookback=1000, strategy=squeez,
-                   units=0.1, session_end='2024-10-31 22:00:00', csv_results_path='/home/jovyan/src/trade', email_info=True, close_order_after_session=True)
+    xt = XtbTrader(instrument='EURUSD', interval='5min', lookback=500, strategy=squeez,
+                   units=5.53, session_end='2024-11-02 22:00:00', csv_results_path='/home/jovyan/src/trade', email_info=True, close_order_after_session=True)
 
     client = APIClient()
     resp = client.execute(loginCommand(user_id, pwd))
