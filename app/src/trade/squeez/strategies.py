@@ -14,7 +14,8 @@ target_price = 0
 
 def squeez(df, window=1):
 
-    wiggle_room = 0.00015
+    #wiggle_room = 0.00015 for EUR
+    wiggle_room = 0.30
     pips = 0.002
     
     df = df.copy()
@@ -29,9 +30,9 @@ def squeez(df, window=1):
     priceActionUptrendInShortTerm(df, wiggle_room)
     detectPosibleEntry(df)
 
-    pos,price,transaction_number,target_price = zip(*[setPosition(row[0],row[1],row[2],row[3], pips) 
+    position,price,transaction_number,target_price = zip(*[setPosition(row[0],row[1],row[2],row[3], pips) 
                                   for row in df[['close','close_smooth','ema25','posible_entry']].to_numpy()])
-    df['position']=pos 
+    df['position']=position 
     df['price']=price
     df['transaction_number']=transaction_number
     df['target_price']=target_price
@@ -53,7 +54,7 @@ def init(df):
     new_list =list(set(df.columns).union(cols_to_check))
     df = df.reindex(columns=sorted(new_list)).fillna(0)
     
-    df['symbol'] = 'EURUSD'
+    df['symbol'] = 'AMD'
     df['qty'] = 10
     df['ema25'] = df['close'].ewm(span=25, adjust=False).mean()
     df["close_smooth"] = savgol_filter(df.close, 49, 5)
@@ -88,14 +89,14 @@ def setPosition(close, close_smooth, ema, posible_entry, pips):
         if transaction_number != record:
             transaction_number = record
     else:
-        if (position==POSITION['SHORT'].value and (close_smooth>ema or target_price==close)):
+        if (position==POSITION['SHORT'].value and close_smooth>ema):
             position=POSITION['NEUTRAL'].value
             price = 0
             if transaction_number == record:
                 record = record + 1
                 price = close 
                 
-        elif (position==POSITION['LONG'].value and (close_smooth<ema or target_price==close)):
+        elif (position==POSITION['LONG'].value and close_smooth<ema):
             position=POSITION['NEUTRAL'].value
             price = 0
             if transaction_number == record:
@@ -172,7 +173,7 @@ def detectSqueezeCloseToEMA(df, wiggle_room)->None:
             df.squeezed_area == EMA25['PRICE_ACCION_UNDER_EMA'].value
         ) & 
         (
-            abs(df.high_smooth-df.ema25)<=wiggle_room
+            abs(df.ema25-df.high_smooth)<=wiggle_room
         )
     )
     
