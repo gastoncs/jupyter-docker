@@ -142,10 +142,22 @@ def priceActionUptrendInShortTerm(df, wiggle_room):
     df['isCloseAboveEma25'] = np.where(df.close_smooth > df.ema25, True,
                                                np.where(abs(df.ema25-df.close_smooth)<=wiggle_room, True, False))
     
-    ''' If in the count of the isCloseAboveEma25 (in the day YMD) there are False then return False
+    ''' 
+        If in the count of the isCloseAboveEma25 (in the day YMD) there are False in the value_counts then return False
+        Here value_counts returns an object containing counts of unique values in this case False, the shape 0 brings the number
+        of rows.
+        
+        Example:
+        x[x==False].value_counts() brings False:2 (we have 2 False count)
+        shape[0](1, 1) brings the rows side of the shape 1 (meaning we have a row of False)
+        So if num_of_rows in shape > 0 then is False
+
+        Other words this: 
+        x[x==False].value_counts().shape[0] (Gives me if there are rows(in shape[0]) from the output of the value_counts)
     '''
+    
     df['is_the_day_above_25ema'] = df.groupby('YMD').isCloseAboveEma25.transform(
-        lambda x: True if x[x==True].value_counts().shape[0] > 0 else False)
+                                    lambda x: False if x[x==False].value_counts().shape[0] > 0 else True)
 
 def detectSqueezeCloseToEMA(df, wiggle_room)->None:
     
