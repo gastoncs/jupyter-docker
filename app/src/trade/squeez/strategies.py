@@ -14,8 +14,7 @@ target_price = 0
 
 def squeez(df, window=1):
 
-    #wiggle_room = 0.00015 for EUR
-    wiggle_room = 0.30
+    wiggle_room = 0.00015
     pips = 0.002
     
     df = df.copy()
@@ -30,14 +29,14 @@ def squeez(df, window=1):
     priceActionUptrendInShortTerm(df, wiggle_room)
     detectPosibleEntry(df)
 
-    position,price,transaction_number,target_price = zip(*[setPosition(row[0],row[1],row[2],row[3], pips) 
+    pos,price,transaction_number,target_price = zip(*[setPosition(row[0],row[1],row[2],row[3], pips) 
                                   for row in df[['close','close_smooth','ema25','posible_entry']].to_numpy()])
-    df['position']=position 
+    df['position']=pos 
     df['price']=price
     df['transaction_number']=transaction_number
     df['target_price']=target_price
     
-    df = df[['bar','symbol','date_est','time_est','high','low','close','volume','open',
+    df = df[['symbol','date_est','time_est','high','low','close','volume','open',
              'high_smooth','low_smooth','close_smooth','ema25','squeezed_area','squeeze_close_ema',
              'is_the_day_above_25ema','last_tree_under','last_tree_over',
              'posible_entry','position','price','target_price','transaction_number']] 
@@ -54,7 +53,7 @@ def init(df):
     new_list =list(set(df.columns).union(cols_to_check))
     df = df.reindex(columns=sorted(new_list)).fillna(0)
     
-    df['symbol'] = 'AMD'
+    df['symbol'] = 'EURUSD'
     df['qty'] = 10
     df['ema25'] = df['close'].ewm(span=25, adjust=False).mean()
     df["close_smooth"] = savgol_filter(df.close, 49, 5)
@@ -140,9 +139,8 @@ def priceActionUptrendInShortTerm(df, wiggle_room):
 
     ''' Check if the price action is above the ema if it does then is true else check if there is a wigle room of .30 cents
     '''
-    df['isPriceActionAboveEma25'] = np.where(df.ema25 > df.close_smooth, 
-                                                 np.where(abs(df.ema25-df.close_smooth)<=wiggle_room, True, False), 
-                                             np.where(df.ema25 < df.close_smooth, True, False))
+    df['isPriceActionAboveEma25'] = np.where(df.close_smooth > df.ema25, True,
+                                               np.where(abs(df.ema25-df.close_smooth)<=wiggle_room, True, False))
     
     ''' If in the count of the isPriceActionAboveEma25 (in the day YMD) there are False then return False
     '''
@@ -192,7 +190,7 @@ def isTheLastTreeSqueezeCloseToEmaOverOrUnderEma(df):
 
     def check_previous_n_rows(date):
         current_idx = df.index.get_loc(date)
-        if current_idx < n:
+        if int(current_idx) < int(n):
             return pd.NaT
         
         previous_n_rows = df['squeeze_close_ema'].iloc[current_idx-n:current_idx]
