@@ -139,13 +139,13 @@ def priceActionUptrendInShortTerm(df, wiggle_room):
 
     ''' Check if the price action is above the ema if it does then is true else check if there is a wigle room of .30 cents
     '''
-    df['isPriceActionAboveEma25'] = np.where(df.close_smooth > df.ema25, True,
+    df['isCloseAboveEma25'] = np.where(df.close_smooth > df.ema25, True,
                                                np.where(abs(df.ema25-df.close_smooth)<=wiggle_room, True, False))
     
-    ''' If in the count of the isPriceActionAboveEma25 (in the day YMD) there are False then return False
+    ''' If in the count of the isCloseAboveEma25 (in the day YMD) there are False then return False
     '''
-    df['is_the_day_above_25ema'] = df.groupby('YMD').isPriceActionAboveEma25.transform(
-        lambda x: False if x[x==False].value_counts().shape[0] > 0 else True)
+    df['is_the_day_above_25ema'] = df.groupby('YMD').isCloseAboveEma25.transform(
+        lambda x: True if x[x==True].value_counts().shape[0] > 0 else False)
 
 def detectSqueezeCloseToEMA(df, wiggle_room)->None:
     
